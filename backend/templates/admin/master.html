@@ -1,0 +1,15 @@
+{% extends 'admin/base.html' %}
+{% block brand %}
+  <a class="navbar-brand" href="{{ url_for('admin.index') }}">RAG Admin</a>
+{% endblock %}
+
+{% block access_control %}
+  {% if g.admin_user %}
+    <div class="d-inline-flex align-items-center">
+      <span class="navbar-text mr-2">Logged in as {{ g.admin_user.username }}</span>
+      <a class="btn btn-outline-secondary btn-sm ml-2" href="{{ url_for('admin_logout') }}">Logout</a>
+    </div>
+  {% else %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_login') }}">Login</a>
+  {% endif %}
+{% endblock %}

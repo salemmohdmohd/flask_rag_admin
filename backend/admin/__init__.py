@@ -1,1 +1,1 @@
-from .admin_views import register_admin_views  # re-export
+# Intentionally empty to avoid circular imports during app initialization.

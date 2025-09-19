@@ -1,7 +1,11 @@
 import os
+from pathlib import Path
 import secrets
 from datetime import datetime, timedelta
+import jwt
+from flask import current_app, g, session
 from flask import Blueprint, request, jsonify
+from werkzeug.utils import secure_filename
 
 from . import db
 from .models.user_models import User, Role
@@ -9,6 +13,7 @@ from .models.chat_models import ChatHistory
 from .models.feedback_models import Feedback
 from .models.settings_models import UserSettings
 from .models.session_models import Session
+from .models.audit_models import FileAuditLog
 from .rag_pipeline_simple import answer_query
 
 
@@ -45,34 +50,132 @@ def login():
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return {"error": "Invalid credentials"}, 401
-    token = secrets.token_urlsafe(32)
-    expires = datetime.utcnow() + timedelta(days=1)
-    sess = Session(user_id=user.id, session_token=token, expires_at=expires)
-    db.session.add(sess)
-    db.session.commit()
+    payload = {
+        "sub": user.id,
+        "username": user.username,
+        "exp": datetime.utcnow()
+        + timedelta(hours=current_app.config.get("JWT_EXPIRES_HOURS", 24)),
+        "iat": datetime.utcnow(),
+    }
+    token = jwt.encode(payload, current_app.config["JWT_SECRET_KEY"], algorithm="HS256")
     return {"token": token, "user": {"id": user.id, "username": user.username}}
 
 
 def _auth_user():
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     if not token:
+        # Fallback to admin session for server-rendered admin UI
+        try:
+            admin_user_id = session.get("admin_user_id")
+            if admin_user_id:
+                user = User.query.get(admin_user_id)
+                if user:
+                    g.current_user_id = user.id
+                    return user
+        except Exception:
+            pass
         return None
-    sess = Session.query.filter_by(session_token=token, is_active=True).first()
-    if not sess or sess.expires_at < datetime.utcnow():
+    try:
+        payload = jwt.decode(
+            token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
+        )
+        user_id = payload.get("sub")
+        user = User.query.get(user_id)
+        if user:
+            g.current_user_id = user.id
+        return user
+    except Exception:
         return None
-    return User.query.get(sess.user_id)
+
+
+def _is_admin(user: User) -> bool:
+    try:
+        return any(getattr(r, "name", None) == "admin" for r in (user.roles or []))
+    except Exception:
+        return False
 
 
 @api_bp.post("/auth/logout")
 def logout():
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    if not token:
-        return {"message": "ok"}
-    sess = Session.query.filter_by(session_token=token, is_active=True).first()
-    if sess:
-        sess.is_active = False
-        db.session.commit()
+    # Stateless JWT: logout is a no-op client side (just drop the token)
     return {"message": "Logged out"}
+
+
+def _resources_dir() -> Path:
+    return Path(os.path.join(os.path.dirname(__file__), "resources")).resolve()
+
+
+def _is_safe_path(base: Path, candidate: Path) -> bool:
+    try:
+        base = base.resolve()
+        candidate = candidate.resolve()
+        return str(candidate).startswith(str(base))
+    except Exception:
+        return False
+
+
+@api_bp.get("/admin/resource")
+def admin_get_resource():
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+    if not _is_admin(user):
+        return {"error": "Forbidden"}, 403
+    rel_path = (request.args.get("path") or "").strip().strip("/\\")
+    if not rel_path:
+        return {"error": "path required"}, 400
+    base = _resources_dir()
+    candidate = (base / rel_path).resolve()
+    if not _is_safe_path(base, candidate):
+        return {"error": "Invalid path"}, 400
+    if not candidate.exists() or not candidate.is_file():
+        return {"error": "Not found"}, 404
+    if not str(candidate).lower().endswith(".md"):
+        return {"error": "Only .md files are supported"}, 400
+    try:
+        content = candidate.read_text(encoding="utf-8")
+    except Exception:
+        return {"error": "Failed to read file"}, 500
+    return {"path": rel_path, "content": content}
+
+
+@api_bp.put("/admin/resource")
+def admin_put_resource():
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+    if not _is_admin(user):
+        return {"error": "Forbidden"}, 403
+    data = request.get_json(silent=True) or {}
+    rel_path = (data.get("path") or "").strip().strip("/\\")
+    content = data.get("content")
+    if not rel_path:
+        return {"error": "path required"}, 400
+    if content is None:
+        return {"error": "content required"}, 400
+    base = _resources_dir()
+    candidate = (base / rel_path).resolve()
+    if not _is_safe_path(base, candidate):
+        return {"error": "Invalid path"}, 400
+    if not str(candidate).lower().endswith(".md"):
+        return {"error": "Only .md files are supported"}, 400
+    if not candidate.exists():
+        # Create parent directories if needed
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        candidate.write_text(content, encoding="utf-8")
+        log = FileAuditLog(
+            file_path=str(Path(rel_path)),
+            user_id=user.id,
+            action="edit" if candidate.exists() else "create",
+            change_summary=f"Edited {rel_path}",
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return {"error": "Failed to save file"}, 500
+    return {"message": "Saved", "path": rel_path}
 
 
 @api_bp.post("/chat/message")
@@ -178,4 +281,135 @@ def admin_reindex():
     user = _auth_user()
     if not user:
         return {"error": "Unauthorized"}, 401
-    return {"message": "Reindex triggered"}
+    if not _is_admin(user):
+        return {"error": "Forbidden"}, 403
+    base = _resources_dir()
+    total_md = 0
+    if base.exists():
+        for _root, _dirs, files in os.walk(base):
+            total_md += sum(1 for f in files if f.lower().endswith(".md"))
+    return {"message": "Reindex triggered", "resources_markdown": total_md}
+
+
+@api_bp.get("/admin/resources")
+def admin_list_resources():
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+    if not _is_admin(user):
+        return {"error": "Forbidden"}, 403
+    base = _resources_dir()
+    base.mkdir(parents=True, exist_ok=True)
+    items = []
+    for root, _dirs, files in os.walk(base):
+        for name in files:
+            if not name.lower().endswith(".md"):
+                continue
+            full = Path(root) / name
+            rel = full.relative_to(base)
+            stat = full.stat()
+            items.append(
+                {
+                    "path": str(rel),
+                    "size": stat.st_size,
+                    "modified": datetime.utcfromtimestamp(stat.st_mtime).isoformat(),
+                }
+            )
+    items.sort(key=lambda x: x["path"])  # stable listing
+    return {"items": items}
+
+
+@api_bp.post("/admin/resources")
+def admin_upload_resource():
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+    if not _is_admin(user):
+        return {"error": "Forbidden"}, 403
+    if "file" not in request.files:
+        return {"error": "No file provided"}, 400
+    file = request.files["file"]
+    if file.filename == "":
+        return {"error": "Empty filename"}, 400
+    filename = secure_filename(file.filename)
+    if not filename.lower().endswith(".md"):
+        return {"error": "Only .md files are allowed"}, 400
+    subdir = request.form.get("subdir", "").strip().strip("/\\")
+    base = _resources_dir()
+    target_dir = (base / subdir) if subdir else base
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_path = (target_dir / filename).resolve()
+    if not _is_safe_path(base, target_path):
+        return {"error": "Invalid path"}, 400
+    file.save(str(target_path))
+    # Audit log
+    try:
+        log = FileAuditLog(
+            file_path=str(target_path.relative_to(base)),
+            user_id=user.id,
+            action="upload",
+            change_summary=f"Uploaded {filename}",
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return {"message": "Uploaded", "path": str(target_path.relative_to(base))}, 201
+
+
+@api_bp.delete("/admin/resources")
+def admin_delete_resource():
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+    if not _is_admin(user):
+        return {"error": "Forbidden"}, 403
+    data = request.get_json(silent=True) or {}
+    rel_path = (data.get("path") or "").strip().strip("/\\")
+    if not rel_path:
+        return {"error": "path required"}, 400
+    base = _resources_dir()
+    candidate = (base / rel_path).resolve()
+    if not _is_safe_path(base, candidate):
+        return {"error": "Invalid path"}, 400
+    if not candidate.exists() or not candidate.is_file():
+        return {"error": "Not found"}, 404
+    if not str(candidate).lower().endswith(".md"):
+        return {"error": "Only .md files can be deleted"}, 400
+    try:
+        candidate.unlink()
+        log = FileAuditLog(
+            file_path=str(Path(rel_path)),
+            user_id=user.id,
+            action="delete",
+            change_summary=f"Deleted {rel_path}",
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return {"error": "Failed to delete"}, 500
+    return {"message": "Deleted", "path": rel_path}
+
+
+@api_bp.get("/admin/audit")
+def admin_list_audit():
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+    if not _is_admin(user):
+        return {"error": "Forbidden"}, 403
+    logs = FileAuditLog.query.order_by(FileAuditLog.timestamp.desc()).limit(100).all()
+    return {
+        "items": [
+            {
+                "id": l.id,
+                "file_path": l.file_path,
+                "user_id": l.user_id,
+                "action": l.action,
+                "timestamp": l.timestamp.isoformat(),
+                "change_summary": l.change_summary,
+            }
+            for l in logs
+        ]
+    }

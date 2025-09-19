@@ -1,0 +1,104 @@
+{% extends 'admin/master.html' %}
+
+{% block body %}
+{% set m = metrics if metrics is defined else {} %}
+{% set audit = recent_audit if recent_audit is defined else [] %}
+<div class="container-fluid mt-3">
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card mb-3">
+        <div class="card-header">Overview</div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-6 col-md-4 mb-3">
+              <div class="h4">{{ m.users|default(0) }}</div>
+              <div class="text-muted">Users</div>
+            </div>
+            <div class="col-6 col-md-4 mb-3">
+              <div class="h4">{{ m.admins|default(0) }}</div>
+              <div class="text-muted">Admins</div>
+            </div>
+            <div class="col-6 col-md-4 mb-3">
+              <div class="h4">{{ m.chats|default(0) }}</div>
+              <div class="text-muted">Chats</div>
+            </div>
+            <div class="col-6 col-md-4 mb-3">
+              <div class="h4">{{ m.feedback|default(0) }}</div>
+              <div class="text-muted">Feedback</div>
+            </div>
+            <div class="col-6 col-md-4 mb-3">
+              <div class="h4">{{ m.settings|default(0) }}</div>
+              <div class="text-muted">User Settings</div>
+            </div>
+            <div class="col-6 col-md-4 mb-3">
+              <div class="h4">{{ m.resources_md|default(0) }}</div>
+              <div class="text-muted">Markdown Files</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Recent File Activity</div>
+        <div class="card-body">
+          {% if audit and audit|length > 0 %}
+            <ul class="list-group">
+              {% for a in audit %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  <span>
+                    <strong>{{ a.action|capitalize }}</strong>
+                    <span class="text-monospace">{{ a.file_path }}</span>
+                  </span>
+                  <small class="text-muted">{{ (a.timestamp.strftime('%Y-%m-%d %H:%M') if a.timestamp is defined and a.timestamp else '') }}</small>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">No recent activity.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card mb-3">
+        <div class="card-header">Quick Actions</div>
+        <div class="card-body">
+          <a class="btn btn-primary btn-sm btn-block mb-2" href="/admin/tools/">Open Tools</a>
+          <a class="btn btn-outline-primary btn-sm btn-block mb-2" href="/admin/editor/">Open Editor</a>
+          <form onsubmit="event.preventDefault(); triggerReindex();">
+            <button id="btn-reindex" class="btn btn-outline-secondary btn-sm btn-block">Trigger Reindex</button>
+          </form>
+          <div id="reindex-status" class="small text-muted mt-2"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Links</div>
+        <div class="card-body">
+          <ul class="mb-0">
+            <li><a href="/api/health" target="_blank" rel="noopener">API Health</a></li>
+            <li><a href="http://localhost:3000" target="_blank" rel="noopener">Frontend App</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function triggerReindex() {
+  const el = document.getElementById('reindex-status');
+  el.textContent = 'Reindexing...';
+  try {
+    const res = await fetch('/api/admin/reindex', { method: 'POST', credentials: 'same-origin' });
+    const text = await res.text();
+    let data; try { data = JSON.parse(text) } catch { data = { raw: text } }
+    if (!res.ok) throw new Error((data && data.error) || res.statusText);
+    el.textContent = 'Done. Markdown files: ' + (data.resources_markdown || 0);
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+</script>
+{% endblock %}
