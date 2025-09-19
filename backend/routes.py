@@ -203,6 +203,7 @@ def chat_message():
         "message": message,
         "response": response,
         "source_file": source_file,
+        "token_usage": (context or {}).get("token_usage"),
     }
 
 
@@ -225,6 +226,9 @@ def chat_history():
                 "response": c.response,
                 "created_at": c.created_at.isoformat(),
                 "source_file": c.source_file,
+                "token_usage": (
+                    (c.context or {}).get("token_usage") if c.context else None
+                ),
             }
             for c in chats
         ]

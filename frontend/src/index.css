@@ -1,0 +1,202 @@
+/* Central styles: Bootstrap is loaded via CDN in index.html */
+
+:root {
+  --brand-primary: #0d6efd; /* Bootstrap primary */
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: #f8f9fa;
+}
+
+.navbar-brand {
+  font-weight: 600;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Utility spacing for inline groups */
+.gap-2 > * + * { margin-left: .5rem; }
+
+/* ---------- Landing Page Styles ---------- */
+.landing-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-section {
+  flex: 1;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  position: relative;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.1);
+  z-index: 1;
+}
+
+.hero-section > .container {
+  position: relative;
+  z-index: 2;
+}
+
+.min-vh-75 {
+  min-height: 75vh;
+}
+
+.hero-content h1 {
+  line-height: 1.2;
+}
+
+.info-section {
+  padding: 5rem 0;
+}
+
+/* ---------- Cards & Components ---------- */
+.card {
+  border-radius: .75rem;
+  border: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+}
+
+.card-elevated {
+  box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+}
+
+.card-flat {
+  box-shadow: none !important;
+}
+
+/* Login card special styling */
+.hero-section .card {
+  backdrop-filter: blur(10px);
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 1rem 2rem rgba(0,0,0,.2);
+}
+
+/* ---------- Dashboard Styles ---------- */
+.dashboard {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.dashboard .navbar {
+  box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+.dashboard .card {
+  border: none;
+  box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+}
+
+.dashboard .card-header {
+  background-color: #fff;
+  border-bottom: 1px solid rgba(0,0,0,.125);
+  font-weight: 600;
+}
+
+/* ---------- Layout helpers (Bootstrap-friendly) ---------- */
+.app-section { margin-bottom: 1.5rem; }
+.container-narrow { max-width: 720px; }
+.sticky-md { position: static; }
+.two-col-md { display: block; }
+
+/* List wrapping for long content */
+.list-group-item { word-break: break-word; }
+
+/* Buttons adjacency spacing */
+.btn + .btn { margin-left: .5rem; }
+
+/* Responsive typography tweaks */
+h1, h2, h3, h4, h5, h6 { margin-top: .5rem; margin-bottom: .75rem; }
+.text-balance { text-wrap: balance; }
+
+/* Code/answer blocks */
+pre {
+  background: #f1f3f5;
+  border: 1px solid rgba(0,0,0,.05);
+  border-radius: .5rem;
+  padding: .5rem .75rem;
+  max-height: 45vh;
+  overflow: auto;
+}
+
+/* Input groups on mobile */
+.input-group > .form-control { min-width: 0; }
+
+/* ---------- Footer Styles ---------- */
+footer {
+  margin-top: auto;
+}
+
+footer a:hover {
+  color: var(--brand-primary) !important;
+  transition: color 0.2s ease;
+}
+
+footer .social-icons a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  transition: all 0.2s ease;
+}
+
+footer .social-icons a:hover {
+  background: var(--brand-primary);
+  transform: translateY(-2px);
+}
+
+/* ---------- Responsive breakpoints (Bootstrap) ---------- */
+/* xs and down */
+@media (max-width: 575.98px) {
+  .navbar-brand { font-size: 1.125rem; }
+  .container { padding-left: .75rem; padding-right: .75rem; }
+  .input-group .form-control { font-size: .95rem; }
+  .btn { font-size: .95rem; }
+
+  .hero-section {
+    padding: 3rem 0;
+  }
+
+  .hero-content {
+    margin-top: 2rem;
+    text-align: center;
+  }
+
+  .display-4 {
+    font-size: 2rem;
+  }
+}
+
+/* md and up */
+@media (min-width: 768px) {
+  .sticky-md { position: sticky; top: 1rem; }
+  .two-col-md { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+}
+
+/* lg and up */
+@media (min-width: 992px) {
+  .container-narrow { max-width: 840px; }
+}

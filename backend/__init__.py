@@ -238,4 +238,47 @@ def create_app():
             else:
                 click.echo("Admin user already exists. Use --force to update password.")
 
+    @app.cli.command("seed-user")
+    @click.option("--username", default=None, help="Username (default: demo)")
+    @click.option("--password", default=None, help="Password (default: demo)")
+    @click.option("--email", default=None, help="Email (default: demo@example.com)")
+    @click.option("--make-admin", is_flag=True, help="Also grant admin role")
+    @click.option("--force", is_flag=True, help="Update password if user exists")
+    def seed_user(username, password, email, make_admin, force):
+        from .models import User, Role, db as _db
+
+        username = username or os.getenv("USER_USERNAME", "demo")
+        password = password or os.getenv("USER_PASSWORD", "demo")
+        email = email or os.getenv("USER_EMAIL", "demo@example.com")
+
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            user = User(username=username, email=email, active=True)
+            user.set_password(password)
+            if make_admin:
+                admin_role = Role.query.filter_by(name="admin").first()
+                if not admin_role:
+                    admin_role = Role(name="admin", description="Administrator")
+                    _db.session.add(admin_role)
+                    _db.session.commit()
+                user.roles.append(admin_role)
+            _db.session.add(user)
+            _db.session.commit()
+            click.echo(f"Created user '{username}'.{' (admin)' if make_admin else ''}")
+        else:
+            if force:
+                user.set_password(password)
+                if make_admin:
+                    admin_role = Role.query.filter_by(name="admin").first()
+                    if not admin_role:
+                        admin_role = Role(name="admin", description="Administrator")
+                        _db.session.add(admin_role)
+                        _db.session.commit()
+                    if admin_role not in user.roles:
+                        user.roles.append(admin_role)
+                _db.session.commit()
+                click.echo(f"Updated user '{username}'.")
+            else:
+                click.echo("User already exists. Use --force to update password.")
+
     return app
