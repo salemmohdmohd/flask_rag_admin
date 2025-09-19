@@ -1,0 +1,13 @@
+{
+  "name": "flask_rag_admin",
+  "private": true,
+  "workspaces": ["frontend"],
+  "scripts": {
+    "dev:backend": "source .venv/bin/activate && python app.py",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev": "concurrently -k \"npm:dev:backend\" \"npm:dev:frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
