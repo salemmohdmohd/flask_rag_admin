@@ -8,3 +8,4 @@ python-dotenv>=0.19
 Flask-Cors>=4.0.0
 google-generativeai>=0.7.0
 pytest>=6.2
+PyJWT>=2.0

@@ -14,7 +14,7 @@ from .models.feedback_models import Feedback
 from .models.settings_models import UserSettings
 from .models.session_models import Session
 from .models.audit_models import FileAuditLog
-from .rag_pipeline_simple import answer_query
+from .rag_pipeline_llm_driven import answer_query
 
 
 api_bp = Blueprint("api", __name__)
@@ -51,7 +51,7 @@ def login():
     if not user or not user.check_password(password):
         return {"error": "Invalid credentials"}, 401
     payload = {
-        "sub": user.id,
+        "sub": str(user.id),
         "username": user.username,
         "exp": datetime.utcnow()
         + timedelta(hours=current_app.config.get("JWT_EXPIRES_HOURS", 24)),
@@ -79,7 +79,7 @@ def _auth_user():
         payload = jwt.decode(
             token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
         )
-        user_id = payload.get("sub")
+        user_id = int(payload.get("sub"))
         user = User.query.get(user_id)
         if user:
             g.current_user_id = user.id
@@ -185,12 +185,23 @@ def chat_message():
         return {"error": "Unauthorized"}, 401
     data = request.get_json() or {}
     message = (data.get("message") or "").strip()
+    session_id = (data.get("session_id") or "").strip()
     if not message:
         return {"error": "Message required"}, 400
+
+    # Generate session_id if not provided
+    if not session_id:
+        import uuid
+
+        session_id = str(uuid.uuid4())
+
     resources_dir = os.path.join(os.path.dirname(__file__), "resources")
-    response, source_file, context = answer_query(message, resources_dir)
+    response, source_file, context = answer_query(
+        message, resources_dir, user.id, session_id
+    )
     chat = ChatHistory(
         user_id=user.id,
+        session_id=session_id,
         message=message,
         response=response,
         source_file=source_file,
@@ -203,7 +214,9 @@ def chat_message():
         "message": message,
         "response": response,
         "source_file": source_file,
+        "session_id": session_id,
         "token_usage": (context or {}).get("token_usage"),
+        "follow_up_suggestions": (context or {}).get("follow_up_suggestions", []),
     }
 
 
@@ -212,12 +225,14 @@ def chat_history():
     user = _auth_user()
     if not user:
         return {"error": "Unauthorized"}, 401
-    chats = (
-        ChatHistory.query.filter_by(user_id=user.id)
-        .order_by(ChatHistory.created_at.desc())
-        .limit(50)
-        .all()
-    )
+
+    session_id = request.args.get("session_id")
+    query = ChatHistory.query.filter_by(user_id=user.id)
+
+    if session_id:
+        query = query.filter_by(session_id=session_id)
+
+    chats = query.order_by(ChatHistory.created_at.desc()).limit(50).all()
     return {
         "items": [
             {
@@ -226,6 +241,7 @@ def chat_history():
                 "response": c.response,
                 "created_at": c.created_at.isoformat(),
                 "source_file": c.source_file,
+                "session_id": c.session_id,
                 "token_usage": (
                     (c.context or {}).get("token_usage") if c.context else None
                 ),
