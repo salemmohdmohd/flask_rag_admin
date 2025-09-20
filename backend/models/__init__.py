@@ -5,3 +5,4 @@ from .feedback_models import Feedback
 from .session_models import Session, PasswordResetToken
 from .settings_models import UserSettings
 from .audit_models import FileAuditLog
+from .persona_models import Persona

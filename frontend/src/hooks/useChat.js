@@ -6,7 +6,7 @@ const useChat = (sessionId, sessions) => {
   const [loading, setLoading] = useState(false)
   const { token } = useAuth()
 
-  const sendMessage = async (message) => {
+  const sendMessage = async (message, messageData = null) => {
     if (!sessionId) {
       console.error('No session selected')
       return
@@ -18,12 +18,15 @@ const useChat = (sessionId, sessions) => {
         throw new Error('No authentication token')
       }
 
+      // Use provided messageData or create default payload
+      const payload = messageData || {
+        message,
+        session_id: sessionId
+      }
+
       const response = await axios.post(
         '/chat/message',
-        {
-          message,
-          session_id: sessionId  // Pass session_id to backend for conversation memory
-        },
+        payload,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -32,7 +35,7 @@ const useChat = (sessionId, sessions) => {
         }
       )
 
-      const { response: aiResponse, source_file, token_usage, follow_up_suggestions } = response.data
+      const { response: aiResponse, source_file, token_usage, follow_up_suggestions, persona } = response.data
 
       // Update the session with the new messages
       const session = sessions.find(s => s.id === sessionId)
@@ -49,7 +52,8 @@ const useChat = (sessionId, sessions) => {
           timestamp: new Date().toLocaleString(),
           source_file,
           token_usage,
-          follow_up_suggestions: follow_up_suggestions || []
+          follow_up_suggestions: follow_up_suggestions || [],
+          persona: persona || null
         }
 
         session.messages.push(userMessage, assistantMessage)

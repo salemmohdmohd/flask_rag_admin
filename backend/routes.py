@@ -186,6 +186,7 @@ def chat_message():
     data = request.get_json() or {}
     message = (data.get("message") or "").strip()
     session_id = (data.get("session_id") or "").strip()
+    persona_name = (data.get("persona_name") or "").strip() or None
     if not message:
         return {"error": "Message required"}, 400
 
@@ -195,9 +196,8 @@ def chat_message():
 
         session_id = str(uuid.uuid4())
 
-    resources_dir = os.path.join(os.path.dirname(__file__), "resources")
     response, source_file, context = answer_query(
-        message, resources_dir, user.id, session_id
+        message, user.id, session_id, persona_name
     )
     chat = ChatHistory(
         user_id=user.id,
@@ -217,6 +217,7 @@ def chat_message():
         "session_id": session_id,
         "token_usage": (context or {}).get("token_usage"),
         "follow_up_suggestions": (context or {}).get("follow_up_suggestions", []),
+        "persona": (context or {}).get("persona"),
     }
 
 
@@ -433,3 +434,88 @@ def admin_list_audit():
             for l in logs
         ]
     }
+
+
+# Persona Management Endpoints
+@api_bp.get("/personas")
+def list_personas():
+    """Get list of all available AI personas."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+
+    from .persona_manager import get_persona_manager
+
+    persona_manager = get_persona_manager()
+    personas = persona_manager.get_available_personas()
+
+    return {"personas": personas}
+
+
+@api_bp.get("/personas/current")
+def get_current_persona():
+    """Get the current active persona."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+
+    from .persona_manager import get_persona_manager
+
+    persona_manager = get_persona_manager()
+    current_persona = persona_manager.get_persona_metadata()
+
+    if not current_persona:
+        return {"error": "No active persona found"}, 404
+
+    return {"persona": current_persona}
+
+
+@api_bp.post("/personas/switch")
+def switch_persona():
+    """Switch to a different AI persona."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+
+    data = request.get_json() or {}
+    persona_name = (data.get("persona_name") or "").strip()
+
+    if not persona_name:
+        return {"error": "persona_name required"}, 400
+
+    from .persona_manager import get_persona_manager
+
+    persona_manager = get_persona_manager()
+
+    success = persona_manager.set_current_persona(persona_name)
+    if not success:
+        return {"error": f"Persona '{persona_name}' not found"}, 404
+
+    # Get the updated persona info
+    current_persona = persona_manager.get_persona_metadata()
+
+    return {
+        "message": f"Switched to {current_persona['display_name']}",
+        "persona": current_persona,
+    }
+
+
+@api_bp.get("/personas/<persona_name>")
+def get_persona_details(persona_name):
+    """Get detailed information about a specific persona."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+
+    from .persona_manager import get_persona_manager
+
+    persona_manager = get_persona_manager()
+
+    persona_metadata = persona_manager.get_persona_metadata(persona_name)
+    if not persona_metadata:
+        return {"error": f"Persona '{persona_name}' not found"}, 404
+
+    # Also get the full prompt content for advanced users
+    persona_prompt = persona_manager.get_persona_prompt(persona_name)
+
+    return {"persona": persona_metadata, "prompt_content": persona_prompt}

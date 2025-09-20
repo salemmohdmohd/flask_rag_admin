@@ -40,19 +40,20 @@ function ChatSidebar({
 	}
 
 	return (
-		<div className="chat-sidebar bg-light border-end" style={{ height: 'calc(100vh - 56px)', overflowY: 'auto' }}>
+		<div className="chat-sidebar bg-light border-end d-flex flex-column" style={{ height: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
 			{/* Sidebar Header */}
-			<div className="p-3 border-bottom">
-				<div className="d-flex justify-content-between align-items-center mb-3">
-					<h6 className="mb-0 fw-bold">
-						<i className="fas fa-history me-2"></i>
-						Chat Sessions
+			<div className="p-2 border-bottom flex-shrink-0">
+				<div className="d-flex justify-content-between align-items-center mb-1">
+					<h6 className="mb-0 fw-bold" style={{ fontSize: '0.75rem' }}>
+						<i className="fas fa-history me-1" style={{ fontSize: '0.7rem' }}></i>
+						Sessions
 					</h6>
 					<button
 						className="btn btn-outline-primary btn-sm"
 						onClick={() => setShowNewSessionInput(true)}
 						disabled={showNewSessionInput}
 						title="New Chat Session"
+						style={{ fontSize: '0.6rem', padding: '0.2rem 0.4rem' }}
 					>
 						<i className="fas fa-plus"></i>
 					</button>
@@ -60,30 +61,33 @@ function ChatSidebar({
 
 				{/* New Session Input */}
 				{showNewSessionInput && (
-					<div className="mb-2">
+					<div className="mb-1">
 						<div className="input-group input-group-sm">
 							<input
 								type="text"
-								className="form-control"
+								className="form-control form-control-sm"
 								placeholder="Session name..."
 								value={newSessionName}
 								onChange={(e) => setNewSessionName(e.target.value)}
 								onKeyPress={handleKeyPress}
 								autoFocus
+								style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
 							/>
 							<button
-								className="btn btn-success"
+								className="btn btn-success btn-sm"
 								onClick={handleCreateSession}
 								disabled={!newSessionName.trim()}
+								style={{ fontSize: '0.6rem', padding: '0.25rem 0.5rem' }}
 							>
 								<i className="fas fa-check"></i>
 							</button>
 							<button
-								className="btn btn-outline-secondary"
+								className="btn btn-outline-secondary btn-sm"
 								onClick={() => {
 									setShowNewSessionInput(false)
 									setNewSessionName('')
 								}}
+								style={{ fontSize: '0.6rem', padding: '0.25rem 0.5rem' }}
 							>
 								<i className="fas fa-times"></i>
 							</button>
@@ -93,23 +97,25 @@ function ChatSidebar({
 			</div>
 
 			{/* Sessions List */}
-			<div className="session-list">
+						{/* Sessions List */}
+			<div className="session-list flex-grow-1" style={{ overflowY: 'auto', overflowX: 'hidden', minHeight: 0, maxHeight: 'calc(100vh - 120px)' }}>
 				{sessions.length === 0 ? (
-					<div className="text-center p-4">
-						<i className="fas fa-comment-alt fa-2x text-muted mb-3"></i>
-						<div className="small text-muted mb-2">No sessions yet</div>
+					<div className="text-center p-2">
+						<i className="fas fa-comment-alt text-muted mb-1" style={{ fontSize: '1rem' }}></i>
+						<div className="text-muted mb-1" style={{ fontSize: '0.7rem' }}>No sessions yet</div>
 						<button
 							className="btn btn-outline-primary btn-sm"
 							onClick={() => setShowNewSessionInput(true)}
+							style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}
 						>
-							Create your first session!
+							Create first session
 						</button>
 					</div>
 				) : (
 					sessions.map(session => (
 						<div
 							key={session.id}
-							className={`session-item p-3 border-bottom cursor-pointer ${
+							className={`session-item p-2 border-bottom cursor-pointer ${
 								currentSession?.id === session.id ? 'bg-primary text-white' : 'bg-white'
 							}`}
 							onClick={() => onSwitchSession(session)}
@@ -129,19 +135,15 @@ function ChatSidebar({
 							}}
 						>
 							<div className="d-flex justify-content-between align-items-start">
-								<div className="flex-grow-1 me-2">
-									<div className="fw-medium text-truncate" style={{ fontSize: '0.9rem' }}>
+								<div className="flex-grow-1 me-1">
+									<div className="fw-medium text-truncate" style={{ fontSize: '0.75rem' }}>
 										{session.name}
 									</div>
-									<div className={`small mt-1 ${
+									<div className={`d-flex justify-content-between ${
 										currentSession?.id === session.id ? 'text-white-50' : 'text-muted'
-									}`}>
-										{session.messages.length} messages
-									</div>
-									<div className={`small ${
-										currentSession?.id === session.id ? 'text-white-50' : 'text-muted'
-									}`}>
-										{formatDate(session.createdAt)}
+									}`} style={{ fontSize: '0.65rem' }}>
+										<span>{session.messages.length} msgs</span>
+										<span>{formatDate(session.createdAt)}</span>
 									</div>
 								</div>
 								<div>
@@ -153,13 +155,13 @@ function ChatSidebar({
 										}`}
 										onClick={(e) => {
 											e.stopPropagation()
-											if (window.confirm(`Delete session "${session.name}"?`)) {
+											if (window.confirm(`Delete "${session.name}"?`)) {
 												onDeleteSession(session.id)
 											}
 										}}
 										style={{
-											fontSize: '0.7rem',
-											padding: '0.2rem 0.4rem'
+											fontSize: '0.55rem',
+											padding: '0.1rem 0.25rem'
 										}}
 									>
 										<i className="fas fa-trash"></i>
@@ -169,12 +171,12 @@ function ChatSidebar({
 
 							{/* Message Preview */}
 							{session.messages && session.messages.length > 0 && (
-								<div className="mt-2">
-									<div className={`small text-truncate ${
+								<div className="mt-1">
+									<div className={`text-truncate ${
 										currentSession?.id === session.id ? 'text-white-50' : 'text-muted'
-									}`} style={{ fontSize: '0.75rem' }}>
-										{session.messages[session.messages.length - 1].content.substring(0, 60)}
-										{session.messages[session.messages.length - 1].content.length > 60 && '...'}
+									}`} style={{ fontSize: '0.6rem' }}>
+										{session.messages[session.messages.length - 1].content.substring(0, 40)}
+										{session.messages[session.messages.length - 1].content.length > 40 && '...'}
 									</div>
 								</div>
 							)}

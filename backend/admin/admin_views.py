@@ -9,6 +9,8 @@ from ..models.chat_models import ChatHistory
 from ..models.feedback_models import Feedback
 from ..models.settings_models import UserSettings
 from ..models.audit_models import FileAuditLog
+from ..models.persona_models import Persona
+from .persona_admin import PersonaAdminView, PersonaManagerView
 
 
 def register_admin_views(admin_app, SecuredModelView):
@@ -18,6 +20,22 @@ def register_admin_views(admin_app, SecuredModelView):
     admin_app.add_view(SecuredModelView(Feedback, db.session))
     admin_app.add_view(SecuredModelView(UserSettings, db.session))
     admin_app.add_view(SecuredModelView(FileAuditLog, db.session))
+
+    # Add persona management views
+    admin_app.add_view(
+        PersonaAdminView(
+            Persona,
+            db.session,
+            name="Personas",
+            endpoint="persona",
+            category="AI Management",
+        )
+    )
+    admin_app.add_view(
+        PersonaManagerView(
+            name="Persona Manager", endpoint="persona_manager", category="AI Management"
+        )
+    )
 
     class ToolsView(SecuredBaseView):
         @expose("/")
