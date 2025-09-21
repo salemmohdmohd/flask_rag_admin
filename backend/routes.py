@@ -444,12 +444,36 @@ def list_personas():
     if not user:
         return {"error": "Unauthorized"}, 401
 
-    from .persona_manager import get_persona_manager
+    from .models.persona_models import Persona
 
-    persona_manager = get_persona_manager()
-    personas = persona_manager.get_available_personas()
+    # Get all active personas
+    personas = Persona.query.filter_by(is_active=True).all()
 
-    return {"personas": personas}
+    # Convert to dict format expected by frontend
+    personas_data = []
+    current_persona = None
+
+    for persona in personas:
+        persona_dict = {
+            "name": persona.name,
+            "display_name": persona.display_name,
+            "description": persona.description,
+            "expertise_areas": persona.expertise_areas or [],
+            "is_current": persona.is_default,
+            "is_active": persona.is_active,
+            "default_temperature": (
+                float(persona.default_temperature)
+                if persona.default_temperature
+                else 0.3
+            ),
+            "max_tokens": persona.max_tokens or 2048,
+        }
+        personas_data.append(persona_dict)
+
+        if persona.is_default:
+            current_persona = persona_dict
+
+    return {"personas": personas_data, "current_persona": current_persona}
 
 
 @api_bp.get("/personas/current")
@@ -459,15 +483,34 @@ def get_current_persona():
     if not user:
         return {"error": "Unauthorized"}, 401
 
-    from .persona_manager import get_persona_manager
+    from .models.persona_models import Persona
 
-    persona_manager = get_persona_manager()
-    current_persona = persona_manager.get_persona_metadata()
+    # Get the default/current persona
+    current_persona = Persona.query.filter_by(is_default=True, is_active=True).first()
+
+    if not current_persona:
+        # If no default persona, get the first active one
+        current_persona = Persona.query.filter_by(is_active=True).first()
 
     if not current_persona:
         return {"error": "No active persona found"}, 404
 
-    return {"persona": current_persona}
+    persona_dict = {
+        "name": current_persona.name,
+        "display_name": current_persona.display_name,
+        "description": current_persona.description,
+        "expertise_areas": current_persona.expertise_areas or [],
+        "is_current": True,
+        "is_active": current_persona.is_active,
+        "default_temperature": (
+            float(current_persona.default_temperature)
+            if current_persona.default_temperature
+            else 0.3
+        ),
+        "max_tokens": current_persona.max_tokens or 2048,
+    }
+
+    return {"persona": persona_dict}
 
 
 @api_bp.post("/personas/switch")
@@ -483,20 +526,39 @@ def switch_persona():
     if not persona_name:
         return {"error": "persona_name required"}, 400
 
-    from .persona_manager import get_persona_manager
+    from .models.persona_models import Persona
 
-    persona_manager = get_persona_manager()
-
-    success = persona_manager.set_current_persona(persona_name)
-    if not success:
+    # Find the requested persona
+    new_persona = Persona.query.filter_by(name=persona_name, is_active=True).first()
+    if not new_persona:
         return {"error": f"Persona '{persona_name}' not found"}, 404
 
-    # Get the updated persona info
-    current_persona = persona_manager.get_persona_metadata()
+    # Reset all personas to not default
+    Persona.query.update({Persona.is_default: False})
+
+    # Set the new persona as default
+    new_persona.is_default = True
+    db.session.commit()
+
+    # Return the updated persona info
+    persona_dict = {
+        "name": new_persona.name,
+        "display_name": new_persona.display_name,
+        "description": new_persona.description,
+        "expertise_areas": new_persona.expertise_areas or [],
+        "is_current": True,
+        "is_active": new_persona.is_active,
+        "default_temperature": (
+            float(new_persona.default_temperature)
+            if new_persona.default_temperature
+            else 0.3
+        ),
+        "max_tokens": new_persona.max_tokens or 2048,
+    }
 
     return {
-        "message": f"Switched to {current_persona['display_name']}",
-        "persona": current_persona,
+        "message": f"Switched to {new_persona.display_name}",
+        "persona": persona_dict,
     }
 
 
@@ -507,15 +569,25 @@ def get_persona_details(persona_name):
     if not user:
         return {"error": "Unauthorized"}, 401
 
-    from .persona_manager import get_persona_manager
+    from .models.persona_models import Persona
 
-    persona_manager = get_persona_manager()
-
-    persona_metadata = persona_manager.get_persona_metadata(persona_name)
-    if not persona_metadata:
+    # Find the requested persona
+    persona = Persona.query.filter_by(name=persona_name, is_active=True).first()
+    if not persona:
         return {"error": f"Persona '{persona_name}' not found"}, 404
 
-    # Also get the full prompt content for advanced users
-    persona_prompt = persona_manager.get_persona_prompt(persona_name)
+    persona_dict = {
+        "name": persona.name,
+        "display_name": persona.display_name,
+        "description": persona.description,
+        "expertise_areas": persona.expertise_areas or [],
+        "is_current": persona.is_default,
+        "is_active": persona.is_active,
+        "default_temperature": (
+            float(persona.default_temperature) if persona.default_temperature else 0.3
+        ),
+        "max_tokens": persona.max_tokens or 2048,
+        "prompt_content": persona.prompt_content,
+    }
 
-    return {"persona": persona_metadata, "prompt_content": persona_prompt}
+    return {"persona": persona_dict, "prompt_content": persona.prompt_content}

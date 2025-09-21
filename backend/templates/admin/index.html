@@ -10,29 +10,37 @@
         <div class="card-header">Overview</div>
         <div class="card-body">
           <div class="row text-center">
-            <div class="col-6 col-md-4 mb-3">
-              <div class="h4">{{ m.users|default(0) }}</div>
+            <div class="col-6 col-md-3 mb-3">
+              <div class="h4 text-primary">{{ m.users|default(0) }}</div>
               <div class="text-muted">Users</div>
             </div>
-            <div class="col-6 col-md-4 mb-3">
-              <div class="h4">{{ m.admins|default(0) }}</div>
+            <div class="col-6 col-md-3 mb-3">
+              <div class="h4 text-success">{{ m.admins|default(0) }}</div>
               <div class="text-muted">Admins</div>
             </div>
-            <div class="col-6 col-md-4 mb-3">
-              <div class="h4">{{ m.chats|default(0) }}</div>
-              <div class="text-muted">Chats</div>
+            <div class="col-6 col-md-3 mb-3">
+              <div class="h4 text-info">{{ m.chats|default(0) }}</div>
+              <div class="text-muted">Chat Sessions</div>
             </div>
-            <div class="col-6 col-md-4 mb-3">
-              <div class="h4">{{ m.feedback|default(0) }}</div>
-              <div class="text-muted">Feedback</div>
+            <div class="col-6 col-md-3 mb-3">
+              <div class="h4 text-warning">{{ m.resources_md|default(0) }}</div>
+              <div class="text-muted">Knowledge Files</div>
             </div>
-            <div class="col-6 col-md-4 mb-3">
-              <div class="h4">{{ m.settings|default(0) }}</div>
-              <div class="text-muted">User Settings</div>
+          </div>
+
+          <!-- Additional metrics row -->
+          <div class="row text-center border-top pt-3">
+            <div class="col-4 mb-2">
+              <div class="h6">{{ m.feedback|default(0) }}</div>
+              <small class="text-muted">Feedback Items</small>
             </div>
-            <div class="col-6 col-md-4 mb-3">
-              <div class="h4">{{ m.resources_md|default(0) }}</div>
-              <div class="text-muted">Markdown Files</div>
+            <div class="col-4 mb-2">
+              <div class="h6">{{ m.settings|default(0) }}</div>
+              <small class="text-muted">User Settings</small>
+            </div>
+            <div class="col-4 mb-2">
+              <div class="h6">{{ (m.chats / m.users) | round(1) if m.users and m.users > 0 else 0 }}</div>
+              <small class="text-muted">Avg Chats/User</small>
             </div>
           </div>
         </div>
@@ -64,12 +72,19 @@
       <div class="card mb-3">
         <div class="card-header">Quick Actions</div>
         <div class="card-body">
-          <a class="btn btn-primary btn-sm btn-block mb-2" href="/admin/tools/">Open Tools</a>
-          <a class="btn btn-outline-primary btn-sm btn-block mb-2" href="/admin/editor/">Open Editor</a>
-          <form onsubmit="event.preventDefault(); triggerReindex();">
-            <button id="btn-reindex" class="btn btn-outline-secondary btn-sm btn-block">Trigger Reindex</button>
-          </form>
-          <div id="reindex-status" class="small text-muted mt-2"></div>
+          <a class="btn btn-primary btn-sm btn-block mb-2" href="{{ url_for('resource.index_view') }}">Manage Resources</a>
+          <a class="btn btn-outline-primary btn-sm btn-block mb-2" href="{{ url_for('persona.index_view') }}">Manage Personas</a>
+          <a class="btn btn-success btn-sm btn-block mb-2" href="{{ url_for('resource.create_view') }}">Add New Resource</a>
+          <a class="btn btn-outline-success btn-sm btn-block mb-2" href="{{ url_for('persona.create_view') }}">Add New Persona</a>
+          <div class="mt-3">
+            <small class="text-muted">
+              <strong>Management:</strong><br>
+              • All management through Flask-Admin interface<br>
+              • Create, edit, delete resources and personas<br>
+              • Clean, unified administration experience<br>
+              • No custom templates needed
+            </small>
+          </div>
         </div>
       </div>
 
@@ -86,19 +101,4 @@
   </div>
 </div>
 
-<script>
-async function triggerReindex() {
-  const el = document.getElementById('reindex-status');
-  el.textContent = 'Reindexing...';
-  try {
-    const res = await fetch('/api/admin/reindex', { method: 'POST', credentials: 'same-origin' });
-    const text = await res.text();
-    let data; try { data = JSON.parse(text) } catch { data = { raw: text } }
-    if (!res.ok) throw new Error((data && data.error) || res.statusText);
-    el.textContent = 'Done. Markdown files: ' + (data.resources_markdown || 0);
-  } catch (e) {
-    el.textContent = 'Error: ' + e.message;
-  }
-}
-</script>
 {% endblock %}

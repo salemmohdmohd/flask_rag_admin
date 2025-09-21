@@ -418,13 +418,69 @@ def create_analysis_prompt(
 ) -> str:
     """Create a comprehensive prompt for LLM-driven analysis with conversation memory and persona support."""
 
-    # Use persona manager to create the prompt
-    from .persona_manager import get_persona_manager
+    # Import here to avoid circular imports
+    from .models.persona_models import Persona
 
-    persona_manager = get_persona_manager()
-    return persona_manager.create_analysis_prompt(
-        query, all_data, chat_history, persona_name
-    )
+    # Get the persona to use
+    if persona_name:
+        persona = Persona.query.filter_by(name=persona_name, is_active=True).first()
+    else:
+        # Get the default persona
+        persona = Persona.query.filter_by(is_default=True, is_active=True).first()
+        if not persona:
+            # Fallback to any active persona
+            persona = Persona.query.filter_by(is_active=True).first()
+
+    # Build the persona-specific prompt
+    persona_prompt = ""
+    if persona and persona.prompt_content:
+        persona_prompt = f"\n{persona.prompt_content}\n"
+    elif persona:
+        # Fallback persona prompt based on basic info
+        expertise = (
+            ", ".join(persona.expertise_areas)
+            if persona.expertise_areas
+            else "general knowledge"
+        )
+        persona_prompt = f"\nYou are {persona.display_name}, an AI assistant specializing in {expertise}. {persona.description}\n"
+    else:
+        # Default persona prompt
+        persona_prompt = "\nYou are a helpful AI assistant with broad knowledge across multiple domains.\n"
+
+    # Build conversation context
+    conversation_context = ""
+    if chat_history:
+        conversation_context = "\n## Recent Conversation History:\n"
+        for chat in chat_history[-3:]:  # Last 3 exchanges
+            conversation_context += (
+                f"Human: {chat['message']}\nAssistant: {chat['response']}\n\n"
+            )
+        conversation_context += "---\n"
+
+    # Create the complete prompt
+    prompt = f"""{persona_prompt}
+
+You are analyzing the following knowledge base to answer user questions. Use the provided data to give accurate, detailed, and helpful responses.
+
+{conversation_context}
+
+## Knowledge Base Context:
+{all_data}
+
+## User Question:
+{query}
+
+## Instructions:
+1. Analyze the provided knowledge base content carefully
+2. Answer the user's question directly and comprehensively
+3. Use specific information from the knowledge base when available
+4. If the information isn't in the knowledge base, say so clearly
+5. Provide practical, actionable advice when appropriate
+6. Keep your response focused and well-structured
+
+Please provide a helpful response:"""
+
+    return prompt
 
 
 def answer_query(
@@ -530,10 +586,31 @@ def answer_query(
             response_text = main_response
 
     # Get persona information for metadata
-    from .persona_manager import get_persona_manager
+    from .models.persona_models import Persona
 
-    persona_manager = get_persona_manager()
-    current_persona = persona_manager.get_persona_metadata(persona_name)
+    current_persona_data = None
+    if persona_name:
+        persona = Persona.query.filter_by(name=persona_name, is_active=True).first()
+        if persona:
+            current_persona_data = {
+                "name": persona.name,
+                "display_name": persona.display_name,
+                "description": persona.description,
+                "expertise_areas": persona.expertise_areas or [],
+            }
+
+    if not current_persona_data:
+        # Get default persona
+        default_persona = Persona.query.filter_by(
+            is_default=True, is_active=True
+        ).first()
+        if default_persona:
+            current_persona_data = {
+                "name": default_persona.name,
+                "display_name": default_persona.display_name,
+                "description": default_persona.description,
+                "expertise_areas": default_persona.expertise_areas or [],
+            }
 
     return (
         response_text,
@@ -547,6 +624,6 @@ def answer_query(
             "follow_up_suggestions": follow_up_suggestions,
             "semantic_search": True,
             "relevant_chunks": len(relevant_chunks),
-            "persona": current_persona,
+            "persona": current_persona_data,
         },
     )

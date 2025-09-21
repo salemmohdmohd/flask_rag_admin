@@ -36,6 +36,28 @@ class Persona(db.Model):
     def __repr__(self):
         return f"<Persona {self.name}: {self.display_name}>"
 
+    @property
+    def status_display(self):
+        """Get a formatted status display."""
+        status = "✅ Active" if self.is_active else "❌ Inactive"
+        if self.is_default:
+            status += " 🌟 Default"
+        return status
+
+    @property
+    def expertise_display(self):
+        """Get a formatted expertise areas display."""
+        if not self.expertise_areas:
+            return "No specialization"
+        if len(self.expertise_areas) <= 3:
+            return ", ".join(self.expertise_areas)
+        return f"{', '.join(self.expertise_areas[:3])} (+{len(self.expertise_areas) - 3} more)"
+
+    @property
+    def config_summary(self):
+        """Get a summary of configuration settings."""
+        return f"Temp: {self.default_temperature}, Max tokens: {self.max_tokens}"
+
     def to_dict(self):
         """Convert persona to dictionary format."""
         return {
@@ -77,6 +99,97 @@ class Persona(db.Model):
         # Set this one as default
         self.is_default = True
         db.session.commit()
+
+    def toggle_active(self):
+        """Toggle the active status of this persona."""
+        self.is_active = not self.is_active
+        self.updated_at = datetime.utcnow()
+        db.session.commit()
+        return self.is_active
+
+    def duplicate(self, new_name: str, new_display_name: str = None):
+        """Create a duplicate of this persona with a new name."""
+        if not new_display_name:
+            new_display_name = f"{self.display_name} (Copy)"
+
+        duplicate = Persona(
+            name=new_name,
+            display_name=new_display_name,
+            description=self.description,
+            expertise_areas=self.expertise_areas.copy() if self.expertise_areas else [],
+            default_temperature=self.default_temperature,
+            max_tokens=self.max_tokens,
+            prompt_content=self.prompt_content,
+            is_active=True,
+            is_default=False,
+        )
+        db.session.add(duplicate)
+        db.session.commit()
+        return duplicate
+
+    @classmethod
+    def get_stats(cls):
+        """Get statistics about personas."""
+        total = cls.query.count()
+        active = cls.query.filter_by(is_active=True).count()
+        default = cls.query.filter_by(is_default=True).first()
+
+        return {
+            "total": total,
+            "active": active,
+            "inactive": total - active,
+            "default_persona": default.display_name if default else None,
+        }
+
+    @classmethod
+    def create_default_personas(cls):
+        """Create a set of default personas if none exist."""
+        if cls.query.count() > 0:
+            return []  # Don't create if personas already exist
+
+        default_personas = [
+            {
+                "name": "general_assistant",
+                "display_name": "General Assistant",
+                "description": "A helpful AI assistant for general questions and tasks",
+                "expertise_areas": ["general knowledge", "problem solving", "research"],
+                "prompt_content": "You are a helpful, knowledgeable assistant ready to help with various tasks.",
+                "is_default": True,
+            },
+            {
+                "name": "technical_expert",
+                "display_name": "Technical Expert",
+                "description": "Specialized in programming, software development, and technical topics",
+                "expertise_areas": [
+                    "programming",
+                    "software development",
+                    "debugging",
+                    "architecture",
+                ],
+                "prompt_content": "You are a technical expert with deep knowledge in programming and software development.",
+            },
+            {
+                "name": "creative_writer",
+                "display_name": "Creative Writer",
+                "description": "Assists with creative writing, storytelling, and content creation",
+                "expertise_areas": [
+                    "creative writing",
+                    "storytelling",
+                    "content creation",
+                    "editing",
+                ],
+                "prompt_content": "You are a creative writing assistant, helping with storytelling and content creation.",
+            },
+        ]
+
+        created_personas = []
+        for persona_data in default_personas:
+            persona = cls(**persona_data)
+            db.session.add(persona)
+            created_personas.append(persona)
+
+        db.session.commit()
+        return created_personas
 
     @staticmethod
     def validate_name(name: str) -> bool:
