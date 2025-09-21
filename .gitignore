@@ -40,7 +40,7 @@ venv.bak/
 .pyre/
 instance/
 .webassets-cache
-app.db
+# app.db
 db.sqlite3
 db.sqlite3-journal
 local_settings.py

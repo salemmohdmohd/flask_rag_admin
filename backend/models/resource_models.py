@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy.orm import relationship
 from ..models import db
 
 
@@ -19,15 +20,28 @@ class Resource(db.Model):
     filepath = db.Column(db.String(500), nullable=False, unique=True, index=True)
     subdirectory = db.Column(db.String(255), nullable=True)
     file_size = db.Column(db.Integer, nullable=False, default=0)
+
+    # Add constraints for data validation
+    __table_args__ = (
+        db.CheckConstraint("LENGTH(filename) >= 1", name="check_filename_not_empty"),
+        db.CheckConstraint("LENGTH(filepath) >= 1", name="check_filepath_not_empty"),
+        db.CheckConstraint("file_size >= 0", name="check_file_size_non_negative"),
+        db.CheckConstraint("filepath LIKE '%.md'", name="check_markdown_extension"),
+    )
     content_preview = db.Column(db.Text, nullable=True)  # First 500 chars
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     is_indexed = db.Column(db.Boolean, nullable=False, default=False)
-    upload_user_id = db.Column(db.Integer, nullable=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, server_default="1"
+    )
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
     last_indexed_at = db.Column(db.DateTime, nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="resources")
 
     def __repr__(self):
         return f"<Resource {self.filename}>"

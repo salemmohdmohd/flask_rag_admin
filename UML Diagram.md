@@ -1,3 +1,4 @@
+
 DATABASE
 ├── table: user
 │   ├── id: Integer [PK]
@@ -28,6 +29,31 @@ Indexes & Relationships
 * user.username, user.email: Unique indexes for fast lookup
 * roles_users: Many-to-many relationship between user and role
 * Foreign keys enforce referential integrity
+
+├── table: personas
+│   ├── id: Integer [PK]
+│   ├── name: String [Unique, Not Null]
+│   ├── display_name: String [Not Null]
+│   ├── description: String
+│   ├── default_temperature: Float [Not Null]
+│   ├── max_tokens: Integer [Not Null]
+│   ├── user_id: Integer [FK to user.id, Default: 1]
+│   ├── created_at: DateTime [Default: Now]
+│   └── is_active: Boolean [Default: True]
+│
+├── table: resources
+│   ├── id: Integer [PK]
+│   ├── filename: String [Not Null]
+│   ├── filepath: String [Not Null]
+│   ├── file_size: Integer [Not Null]
+│   ├── user_id: Integer [FK to user.id, Default: 1]
+│   ├── created_at: DateTime [Default: Now]
+│   ├── updated_at: DateTime [Auto-update]
+│   └── is_active: Boolean [Default: True]
+
+* personas.user_id and resources.user_id:
+	- `user_id=1`: Company default (system) personas/resources (read-only for users)
+	- `user_id≠1`: User-created personas/resources (editable/removable by owner)
 
 ├── table: chat_history
 │   ├── id: Integer [PK]

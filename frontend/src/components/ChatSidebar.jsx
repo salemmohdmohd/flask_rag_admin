@@ -41,7 +41,7 @@ function ChatSidebar({
 	}
 
 	return (
-		<div className={`chat-sidebar bg-light d-flex flex-column ${isMobile ? 'h-100' : ''}`} style={{
+		<div className={`bg-light d-flex flex-column ${isMobile ? 'h-100' : ''}`} style={{
 			height: isMobile ? '100%' : '100vh',
 			maxHeight: isMobile ? 'none' : '100vh',
 			overflow: 'hidden'
@@ -98,7 +98,7 @@ function ChatSidebar({
 			</div>
 
 			{/* Sessions List */}
-			<div className="session-list flex-grow-1 overflow-auto">
+			<div className="flex-grow-1 overflow-auto">
 				{sessions.length === 0 ? (
 					<div className="text-center p-4">
 						<i className="fas fa-comment-alt text-muted mb-3" style={{ fontSize: '2rem' }}></i>

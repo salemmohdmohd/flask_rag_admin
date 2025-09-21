@@ -3,11 +3,21 @@
 ## Overview
 The RAG Admin Dashboard provides a comprehensive REST API for managing retrieval-augmented generation systems, user interactions, and knowledge base operations.
 
+
 **Base URL**: `https://api.rag-admin.example.com/v1`
 **Authentication**: Bearer Token
 **Content-Type**: `application/json`
 
+## System vs User Data Separation
+
+All resources and personas are now separated by `user_id`:
+- `user_id=1`: Company default (system) resources/personas (read-only for users)
+- `user_id≠1`: User-created resources/personas (editable/removable by owner)
+
+Knowledge base endpoints and persona endpoints return both system and user data, with clear distinction in the response objects.
+
 ## Authentication
+
 
 ### POST /auth/login
 Authenticate user and obtain access token.
@@ -15,7 +25,7 @@ Authenticate user and obtain access token.
 **Request Body:**
 ```json
 {
-  "email": "admin@example.com",
+  "username": "admin",
   "password": "secure_password"
 }
 ```
@@ -23,12 +33,10 @@ Authenticate user and obtain access token.
 **Response:**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...",
-  "expires_in": 3600,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
-    "id": 123,
-    "email": "admin@example.com",
+    "id": 1,
+    "username": "admin",
     "role": "administrator"
   }
 }
@@ -130,14 +138,16 @@ tags: ["ssl", "certificates", "configuration"]
 }
 ```
 
+
 ### GET /knowledge/documents
-List all documents in the knowledge base.
+List all documents in the knowledge base. Returns both company (system) and user documents, with `user_id` field for separation.
 
 **Query Parameters:**
 - `page`: Page number (default: 1)
 - `limit`: Items per page (default: 20)
 - `category`: Filter by category
 - `search`: Search in document content
+- `user_id`: (optional) Filter by user (e.g. `user_id=1` for system resources)
 
 **Response:**
 ```json
@@ -150,7 +160,18 @@ List all documents in the knowledge base.
       "upload_date": "2025-09-15T09:00:00Z",
       "size_bytes": 15420,
       "status": "indexed",
-      "tags": ["ssl", "security", "configuration"]
+      "tags": ["ssl", "security", "configuration"],
+      "user_id": 1
+    },
+    {
+      "id": "doc_abc456",
+      "filename": "user-manual.pdf",
+      "category": "manual",
+      "upload_date": "2025-09-16T10:00:00Z",
+      "size_bytes": 20480,
+      "status": "indexed",
+      "tags": ["manual", "user"],
+      "user_id": 3
     }
   ],
   "pagination": {
@@ -303,6 +324,11 @@ X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 995
 X-RateLimit-Reset: 1695123600
 ```
+
+
+## Embeddings Caching
+
+Embeddings cache is now per-user. Each user's queries and document embeddings are cached separately for privacy and scalability. No global cache is used.
 
 ## SDKs and Libraries
 

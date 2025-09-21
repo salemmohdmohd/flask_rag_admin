@@ -71,6 +71,30 @@ def create_app():
                 "Failed to register Flask-Admin views"
             )
 
+        # Initialize default data
+        try:
+            from .models.persona_models import Persona
+            from .models.resource_models import Resource
+
+            # Create default personas if none exist
+            if Persona.query.count() == 0:
+                default_personas = Persona.create_default_personas()
+                logging.getLogger(__name__).info(
+                    f"Created {len(default_personas)} default personas"
+                )
+
+            # Sync resources with filesystem
+            new_files, missing_files = Resource.sync_with_filesystem()
+            if new_files or missing_files:
+                logging.getLogger(__name__).info(
+                    f"Resource sync: {new_files} new files, {missing_files} missing files"
+                )
+
+        except Exception as e:
+            logging.getLogger(__name__).exception(
+                f"Failed to initialize default data: {e}"
+            )
+
     # Routes
     from .routes import api_bp
 

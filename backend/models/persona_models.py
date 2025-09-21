@@ -5,6 +5,7 @@ Persona database models for dynamic persona management through Flask-Admin.
 from datetime import datetime
 from typing import List
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, JSON
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from ..models import db
 
@@ -23,15 +24,36 @@ class Persona(db.Model):
     )  # List of strings
     default_temperature = db.Column(db.Float, nullable=False, default=0.3)
     max_tokens = db.Column(db.Integer, nullable=False, default=2048)
+
+    # Add constraints for data validation
+    __table_args__ = (
+        db.CheckConstraint(
+            "default_temperature >= 0.0 AND default_temperature <= 2.0",
+            name="check_temperature_range",
+        ),
+        db.CheckConstraint(
+            "max_tokens > 0 AND max_tokens <= 100000", name="check_max_tokens_range"
+        ),
+        db.CheckConstraint("LENGTH(name) >= 3", name="check_name_length"),
+        db.CheckConstraint(
+            "LENGTH(display_name) >= 3", name="check_display_name_length"
+        ),
+    )
     prompt_content = db.Column(
         db.Text, nullable=True
     )  # Store the actual persona prompt
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     is_default = db.Column(db.Boolean, nullable=False, default=False)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, server_default="1"
+    )
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+    # Relationships
+    user = relationship("User", back_populates="personas")
 
     def __repr__(self):
         return f"<Persona {self.name}: {self.display_name}>"

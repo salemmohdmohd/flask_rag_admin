@@ -2,8 +2,11 @@ import React, { useState } from 'react'
 import axios from 'axios'
 import AuthProvider, { useAuth } from './contexts/AuthProvider'
 import Dashboard from './pages/Dashboard'
-import Chat from './pages/Chat'
+import ChatPage from './pages/ChatPage'
 import LandingPage from './pages/LandingPage'
+import DocumentManagementClientSide from './pages/DocumentManagementClientSide.jsx'
+import Settings from './pages/Settings.jsx'
+import Analytics from './pages/Analytics.jsx'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -57,7 +60,34 @@ function AppContent() {
         path="/chat"
         element={
           <ProtectedRoute>
-            <Chat onLogout={() => { logout(); navigate('/', { replace: true }) }} />
+            <ChatPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/documents"
+        element={
+          <ProtectedRoute>
+            <DocumentManagementClientSide onLogout={() => { logout(); navigate('/', { replace: true }) }} />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings onLogout={() => { logout(); navigate('/', { replace: true }) }} />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Analytics onLogout={() => { logout(); navigate('/', { replace: true }) }} />
           </ProtectedRoute>
         }
       />

@@ -60,11 +60,11 @@ function Dashboard({ onLogout }) {
 									<i className="fas fa-file-upload fa-2x text-success"></i>
 								</div>
 								<h5 className="card-title">Document Management</h5>
-								<p className="card-text text-muted">Upload and manage your knowledge base</p>
-								<button className="btn btn-success btn-sm" disabled>
+								<p className="card-text text-muted">Upload, edit, or delete your knowledge base documents and personas</p>
+								<Link to="/documents" className="btn btn-success btn-sm">
 									<i className="fas fa-arrow-right me-1"></i>
-									Coming Soon
-								</button>
+									Manage Documents
+								</Link>
 							</div>
 						</div>
 					</div>
@@ -73,14 +73,14 @@ function Dashboard({ onLogout }) {
 						<div className="card h-100 border-0 shadow-sm">
 							<div className="card-body text-center p-4">
 								<div className="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '70px', height: '70px' }}>
-									<i className="fas fa-users fa-2x text-warning"></i>
+									<i className="fas fa-cog fa-2x text-warning"></i>
 								</div>
-								<h5 className="card-title">User Management</h5>
-								<p className="card-text text-muted">Manage system users and permissions</p>
-								<button className="btn btn-warning btn-sm" disabled>
+								<h5 className="card-title">Settings</h5>
+								<p className="card-text text-muted">Manage your settings like dark theme or completely delete your data (non-reversible)</p>
+								<Link to="/settings" className="btn btn-warning btn-sm">
 									<i className="fas fa-arrow-right me-1"></i>
-									Coming Soon
-								</button>
+									Open Settings
+								</Link>
 							</div>
 						</div>
 					</div>
@@ -92,11 +92,11 @@ function Dashboard({ onLogout }) {
 									<i className="fas fa-chart-bar fa-2x text-info"></i>
 								</div>
 								<h5 className="card-title">Analytics</h5>
-								<p className="card-text text-muted">View system usage and performance metrics</p>
-								<button className="btn btn-info btn-sm" disabled>
+								<p className="card-text text-muted">View your system usage and performance metrics</p>
+								<Link to="/analytics" className="btn btn-info btn-sm">
 									<i className="fas fa-arrow-right me-1"></i>
-									Coming Soon
-								</button>
+									View Analytics
+								</Link>
 							</div>
 						</div>
 					</div>

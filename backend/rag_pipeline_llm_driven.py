@@ -309,7 +309,9 @@ def semantic_search(
     # Sort by similarity and return top results
     similarities.sort(key=lambda x: x["similarity"], reverse=True)
 
-    print(f"🔍 Found {len(similarities)} chunks, returning top {top_k}")
+    print(
+        f"🔍 Semantic search processed {len(similarities)} chunks, returning top {top_k}"
+    )
     for i, result in enumerate(similarities[:3]):  # Show top 3 similarities
         print(
             f"  {i+1}. {result['chunk']['source_file']} (similarity: {result['similarity']:.3f})"
@@ -481,6 +483,268 @@ You are analyzing the following knowledge base to answer user questions. Use the
 Please provide a helpful response:"""
 
     return prompt
+
+
+def answer_query_with_client_documents(
+    query: str,
+    documents: list,
+    user_id: int,
+    session_id: str = None,
+    persona_name: str = None,
+):
+    """
+    Answer a query using documents provided directly from client-side storage.
+
+    This function now handles both full documents and pre-filtered chunks from
+    client-side semantic search, making it more efficient when chunks are pre-selected.
+
+    Args:
+        query: The user's question
+        documents: List of {"filename": str, "content": str} objects from client
+                  Can be full documents or pre-filtered chunks
+        user_id: ID of the user making the query
+        session_id: Optional session ID for conversation tracking
+        persona_name: Optional persona name to use
+
+    Returns:
+        tuple: (response, source_info, context)
+    """
+    api_key = os.getenv("GOOGLE_GEMINI_API_KEY", "").strip()
+
+    # Require API key - no fallback
+    if (
+        not api_key
+        or api_key == "AIzaSy-PLACEHOLDER-GET-YOUR-OWN-KEY-FROM-GOOGLE-AI-STUDIO"
+    ):
+        raise ValueError(
+            "GOOGLE_GEMINI_API_KEY is required. Get one from https://makersuite.google.com/app/apikey"
+        )
+
+    try:
+        # Early return if no documents provided
+        if not documents:
+            no_docs_response = "I don't have any documents to reference for your question. Please upload some documents first."
+            return (
+                no_docs_response,
+                None,
+                {
+                    "token_usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                    },
+                    "follow_up_suggestions": [],
+                },
+            )
+
+        print(f"🔍 Processing {len(documents)} documents/chunks for user {user_id}")
+
+        # Since the client may have already done semantic search and sent us
+        # the most relevant chunks, we can use them directly without additional filtering
+        relevant_data = "\n\n".join(
+            [
+                f"# From: {doc.get('filename', 'unknown')}\n{doc.get('content', '')}"
+                for doc in documents
+                if doc.get("content", "").strip()
+            ]
+        )
+
+        if not relevant_data.strip():
+            no_content_response = "The provided documents appear to be empty or contain no readable content."
+            return (
+                no_content_response,
+                None,
+                {
+                    "token_usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                    },
+                    "follow_up_suggestions": [],
+                },
+            )
+
+        # Get source file info from the first document
+        source_file = documents[0].get("filename", "unknown") if documents else None
+
+        # Get conversation history for context
+        chat_history = (
+            get_chat_history(user_id, session_id, limit=5)
+            if user_id and session_id
+            else []
+        )
+
+        # Create comprehensive analysis prompt with conversation memory, relevant data, and persona
+        prompt = create_analysis_prompt(
+            query, relevant_data, chat_history, persona_name
+        )
+
+        # Get AI analysis using existing Gemini call
+        print(f"🤖 Using LLM-driven analysis with client documents for query: {query}")
+        response_text, usage, error = call_gemini(prompt, api_key)
+
+        if error:
+            raise RuntimeError(f"Gemini API failed: {error}")
+
+        if not response_text:
+            raise RuntimeError("Empty response from Gemini API")
+
+        # Extract follow-up suggestions if present (same logic as existing function)
+        follow_up_suggestions = []
+        if "🤔 You might also want to ask:" in response_text:
+            # Split response to separate main content from suggestions
+            parts = response_text.split("## 🤔 You might also want to ask:")
+            if len(parts) > 1:
+                main_response = parts[0].strip()
+                suggestions_text = parts[1].strip()
+
+                # Extract bullet points as suggestions
+                for line in suggestions_text.split("\n"):
+                    line = line.strip()
+                    if line.startswith("- ") or line.startswith("* "):
+                        suggestion = line[2:].strip()
+                        if suggestion:
+                            follow_up_suggestions.append(suggestion)
+
+                # Use main response without suggestions for display
+                response_text = main_response
+
+        # Get persona information for metadata (same logic as existing function)
+        from .models.persona_models import Persona
+
+        current_persona_data = None
+        if persona_name:
+            persona = Persona.query.filter_by(name=persona_name, is_active=True).first()
+            if persona:
+                current_persona_data = {
+                    "name": persona.name,
+                    "display_name": persona.display_name,
+                    "description": persona.description,
+                    "expertise_areas": persona.expertise_areas or [],
+                }
+
+        if not current_persona_data:
+            # Get default persona
+            default_persona = Persona.query.filter_by(
+                is_default=True, is_active=True
+            ).first()
+            if default_persona:
+                current_persona_data = {
+                    "name": default_persona.name,
+                    "display_name": default_persona.display_name,
+                    "description": default_persona.description,
+                    "expertise_areas": default_persona.expertise_areas or [],
+                }
+
+        print(
+            f"✅ Generated response using {len(documents)} document chunks from client"
+        )
+
+        return (
+            response_text,
+            source_file,
+            {
+                "token_usage": usage
+                or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                "ai_generated": True,
+                "query": query,
+                "data_length": len(relevant_data),
+                "follow_up_suggestions": follow_up_suggestions,
+                "semantic_search": True,
+                "relevant_chunks": len(documents),
+                "persona": current_persona_data,
+                "client_documents": True,
+                "documents_count": len(documents),
+            },
+        )
+
+    except Exception as e:
+        print(f"❌ Error in answer_query_with_client_documents: {str(e)}")
+        error_response = (
+            "I encountered an error while processing your question. Please try again."
+        )
+        return (
+            error_response,
+            None,
+            {
+                "token_usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
+                "follow_up_suggestions": [],
+                "error": str(e),
+            },
+        )
+
+
+def split_text_into_chunks(text: str, chunk_size: int = 1000, overlap: int = 200):
+    """
+    Split text into overlapping chunks for better context preservation.
+    """
+    if len(text) <= chunk_size:
+        return [text]
+
+    chunks = []
+    start = 0
+
+    while start < len(text):
+        end = start + chunk_size
+
+        # Try to break at sentence boundary if possible
+        if end < len(text):
+            # Look for sentence endings in the last 100 characters
+            search_start = max(end - 100, start)
+            sentence_end = -1
+
+            for i in range(end, search_start - 1, -1):
+                if text[i] in ".!?":
+                    sentence_end = i + 1
+                    break
+
+            if sentence_end > start:
+                end = sentence_end
+
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+        # Move start position with overlap
+        start = end - overlap if end < len(text) else len(text)
+
+    return chunks
+
+
+def find_relevant_chunks_from_documents(
+    query: str, document_chunks: list, top_k: int = 10
+):
+    """
+    Find the most relevant document chunks for a given query using keyword-based similarity.
+    Fallback when semantic search is not available.
+    """
+    try:
+        # Simple keyword-based relevance scoring
+        query_words = set(query.lower().split())
+        scored_chunks = []
+
+        for chunk in document_chunks:
+            content = chunk.get("text", "").lower()
+
+            # Count keyword matches
+            matches = sum(1 for word in query_words if word in content)
+
+            # Calculate relevance score
+            if matches > 0:
+                score = matches / len(query_words)
+                scored_chunks.append((score, chunk))
+
+        # Sort by relevance score and return top chunks
+        scored_chunks.sort(key=lambda x: x[0], reverse=True)
+        return [chunk for score, chunk in scored_chunks[:top_k]]
+
+    except Exception as e:
+        print(f"❌ Error in find_relevant_chunks_from_documents: {str(e)}")
+        return []
 
 
 def answer_query(

@@ -1,5 +1,10 @@
 export const TOKEN_KEY: string = 'token'
 
+export const getApiUrl = (): string => {
+  // Use relative URLs since axios is configured with baseURL in App.tsx
+  return ''
+}
+
 export const API_ENDPOINTS = {
   HEALTH: '/health',
   LOGIN: '/auth/login',

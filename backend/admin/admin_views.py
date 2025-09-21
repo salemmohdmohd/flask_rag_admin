@@ -86,8 +86,25 @@ class FeedbackForm(BaseForm):
     comment = TextAreaField("Comment", [Optional()])
 
 
+class UserForm(BaseForm):
+    """Custom form for User model to avoid WTForms tuple errors."""
+
+    username = StringField("Username", [DataRequired(), Length(min=1, max=80)])
+    email = StringField("Email", [DataRequired(), Length(min=1, max=120)])
+    active = BooleanField("Active", default=True)
+    profile = TextAreaField("Profile (JSON)", [Optional()])
+
+
+class RoleForm(BaseForm):
+    """Custom form for Role model to avoid WTForms tuple errors."""
+
+    name = StringField("Name", [DataRequired(), Length(min=1, max=80)])
+    description = StringField("Description", [Optional(), Length(max=255)])
+    permissions = TextAreaField("Permissions (JSON)", [Optional()])
+
+
 class CustomPersonaModelView(ModelView):
-    """Custom ModelView for Persona with explicit form configuration."""
+    """Custom ModelView for Persona with explicit form configuration and user isolation."""
 
     form = PersonaForm
     column_list = [
@@ -102,14 +119,46 @@ class CustomPersonaModelView(ModelView):
         "expertise_display": "Expertise",
         "config_summary": "Configuration",
     }
-    form_excluded_columns = ["created_at", "updated_at"]
+    form_excluded_columns = ["created_at", "updated_at", "user_id"]
     can_create = True
     can_edit = True
     can_delete = True
 
+    def get_query(self):
+        """Filter to show only current user's personas."""
+        from flask import session, g
+
+        user_id = getattr(g, "current_user_id", None) or session.get("admin_user_id")
+        if user_id:
+            return self.session.query(self.model).filter(self.model.user_id == user_id)
+        return self.session.query(self.model).filter(False)  # Show nothing if no user
+
+    def get_count_query(self):
+        """Count only current user's personas."""
+        from flask import session, g
+        from sqlalchemy import func
+
+        user_id = getattr(g, "current_user_id", None) or session.get("admin_user_id")
+        if user_id:
+            return self.session.query(func.count(self.model.id)).filter(
+                self.model.user_id == user_id
+            )
+        return self.session.query(func.count(self.model.id)).filter(False)
+
+    def on_model_change(self, form, model, is_created):
+        """Set user_id when creating new personas."""
+        if is_created:
+            from flask import session, g
+
+            user_id = getattr(g, "current_user_id", None) or session.get(
+                "admin_user_id"
+            )
+            if user_id:
+                model.user_id = user_id
+
 
 class CustomResourceModelView(ModelView):
-    """Custom ModelView for Resource with explicit form configuration."""
+    """Custom ModelView for Resource with explicit form configuration and user isolation."""
 
     form = ResourceForm
     column_list = [
@@ -124,11 +173,43 @@ class CustomResourceModelView(ModelView):
         "created_at",
         "updated_at",
         "last_indexed_at",
-        "upload_user_id",
+        "user_id",
     ]
     can_create = True
     can_edit = True
     can_delete = True
+
+    def get_query(self):
+        """Filter to show only current user's resources."""
+        from flask import session, g
+
+        user_id = getattr(g, "current_user_id", None) or session.get("admin_user_id")
+        if user_id:
+            return self.session.query(self.model).filter(self.model.user_id == user_id)
+        return self.session.query(self.model).filter(False)  # Show nothing if no user
+
+    def get_count_query(self):
+        """Count only current user's resources."""
+        from flask import session, g
+        from sqlalchemy import func
+
+        user_id = getattr(g, "current_user_id", None) or session.get("admin_user_id")
+        if user_id:
+            return self.session.query(func.count(self.model.id)).filter(
+                self.model.user_id == user_id
+            )
+        return self.session.query(func.count(self.model.id)).filter(False)
+
+    def on_model_change(self, form, model, is_created):
+        """Set user_id when creating new resources."""
+        if is_created:
+            from flask import session, g
+
+            user_id = getattr(g, "current_user_id", None) or session.get(
+                "admin_user_id"
+            )
+            if user_id:
+                model.user_id = user_id
 
 
 class CustomFeedbackModelView(ModelView):
@@ -142,23 +223,50 @@ class CustomFeedbackModelView(ModelView):
     can_delete = True
 
 
-def register_admin_views(admin_app, SecuredModelView):
-    admin_app.add_view(SecuredModelView(User, db.session))
-    admin_app.add_view(SecuredModelView(Role, db.session))
-    admin_app.add_view(SecuredModelView(ChatHistory, db.session))
-    admin_app.add_view(SecuredModelView(UserSettings, db.session))
-    admin_app.add_view(SecuredModelView(FileAuditLog, db.session))
+class CustomUserModelView(ModelView):
+    """Custom ModelView for User with explicit form configuration."""
 
+    form = UserForm
+    column_list = ["username", "email", "active", "created_at"]
+    form_excluded_columns = ["created_at", "updated_at", "password_hash"]
+    can_create = True
+    can_edit = True
+    can_delete = True
+
+
+class CustomRoleModelView(ModelView):
+    """Custom ModelView for Role with explicit form configuration."""
+
+    form = RoleForm
+    column_list = ["name", "description", "created_at"]
+    form_excluded_columns = ["created_at", "updated_at"]
+    can_create = True
+    can_edit = True
+    can_delete = True
+
+
+def register_admin_views(admin_app, SecuredModelView):
     # Use custom model views for problematic models
+    class SecuredUserModelView(SecuredModelView, CustomUserModelView):
+        pass
+
+    class SecuredRoleModelView(SecuredModelView, CustomRoleModelView):
+        pass
+
+    class SecuredFeedbackModelView(SecuredModelView, CustomFeedbackModelView):
+        pass
+
     class SecuredPersonaModelView(SecuredModelView, CustomPersonaModelView):
         pass
 
     class SecuredResourceModelView(SecuredModelView, CustomResourceModelView):
         pass
 
-    class SecuredFeedbackModelView(SecuredModelView, CustomFeedbackModelView):
-        pass
-
+    admin_app.add_view(SecuredUserModelView(User, db.session))
+    admin_app.add_view(SecuredRoleModelView(Role, db.session))
+    admin_app.add_view(SecuredModelView(ChatHistory, db.session))
+    admin_app.add_view(SecuredModelView(UserSettings, db.session))
+    admin_app.add_view(SecuredModelView(FileAuditLog, db.session))
     admin_app.add_view(SecuredPersonaModelView(Persona, db.session))
     admin_app.add_view(SecuredResourceModelView(Resource, db.session))
     admin_app.add_view(SecuredFeedbackModelView(Feedback, db.session))

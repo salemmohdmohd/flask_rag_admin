@@ -14,7 +14,9 @@ from .models.feedback_models import Feedback
 from .models.settings_models import UserSettings
 from .models.session_models import Session
 from .models.audit_models import FileAuditLog
-from .rag_pipeline_llm_driven import answer_query
+from .models.persona_models import Persona
+from .models.resource_models import Resource
+from .rag_pipeline_llm_driven import answer_query, answer_query_with_client_documents
 
 
 api_bp = Blueprint("api", __name__)
@@ -190,11 +192,9 @@ def chat_message():
     if not message:
         return {"error": "Message required"}, 400
 
-    # Generate session_id if not provided
+    # Require explicit session_id - no auto-generation
     if not session_id:
-        import uuid
-
-        session_id = str(uuid.uuid4())
+        return {"error": "Session ID required. Please create a session first."}, 400
 
     response, source_file, context = answer_query(
         message, user.id, session_id, persona_name
@@ -219,6 +219,71 @@ def chat_message():
         "follow_up_suggestions": (context or {}).get("follow_up_suggestions", []),
         "persona": (context or {}).get("persona"),
     }
+
+
+@api_bp.post("/chat/message/client-documents")
+def chat_message_with_client_documents():
+    """
+    Chat endpoint that accepts documents from client-side storage
+    instead of reading from server files.
+
+    Now supports both full documents and pre-filtered chunks from client-side semantic search.
+    """
+    user = _auth_user()
+    if not user:
+        return {"error": "Unauthorized"}, 401
+
+    data = request.get_json() or {}
+    message = (data.get("message") or "").strip()
+    session_id = (data.get("session_id") or "").strip()
+    persona_name = (data.get("persona_name") or "").strip() or None
+    documents = data.get("documents", [])  # Array of {filename, content} objects
+    search_method = data.get(
+        "search_method", "full_documents"
+    )  # "semantic_search" or "full_documents"
+
+    if not message:
+        return {"error": "Message required"}, 400
+
+    # Require explicit session_id - no auto-generation
+    if not session_id:
+        return {"error": "Session ID required. Please create a session first."}, 400
+
+    try:
+        # Use client-side RAG function
+        response, source_info, context = answer_query_with_client_documents(
+            message, documents, user.id, session_id, persona_name
+        )
+
+        # Add search method info to context
+        if context:
+            context["search_method"] = search_method
+            context["documents_received"] = len(documents)
+
+        chat = ChatHistory(
+            user_id=user.id,
+            session_id=session_id,
+            message=message,
+            response=response,
+            source_file=source_info,
+            context=context,
+        )
+        db.session.add(chat)
+        db.session.commit()
+
+        return {
+            "id": chat.id,
+            "message": message,
+            "response": response,
+            "source_file": source_info,
+            "session_id": session_id,
+            "token_usage": (context or {}).get("token_usage"),
+            "follow_up_suggestions": (context or {}).get("follow_up_suggestions", []),
+            "persona": (context or {}).get("persona"),
+            "search_method": search_method,
+        }
+    except Exception as e:
+        return {"error": f"Chat processing failed: {str(e)}"}, 500
 
 
 @api_bp.get("/chat/history")
@@ -413,6 +478,78 @@ def admin_delete_resource():
     return {"message": "Deleted", "path": rel_path}
 
 
+@api_bp.get("/resources")
+def get_resources():
+    """Get all available knowledge base resources for the current user."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    # Get server-side resources (including system defaults with user_id=1)
+    resources = Resource.query.filter(
+        Resource.is_active == True,
+        (Resource.user_id == user.id) | (Resource.user_id == 1),
+    ).all()
+
+    resources_list = []
+    for resource in resources:
+        resources_list.append(
+            {
+                "id": resource.id,
+                "filename": resource.filename,
+                "filepath": resource.filepath,
+                "subdirectory": resource.subdirectory,
+                "file_size": resource.file_size,
+                "content_preview": resource.content_preview,
+                "is_active": resource.is_active,
+                "is_indexed": resource.is_indexed,
+                "user_id": resource.user_id,  # Add user_id to identify system vs user resources
+                "created_at": (
+                    resource.created_at.isoformat() if resource.created_at else None
+                ),
+                "updated_at": (
+                    resource.updated_at.isoformat() if resource.updated_at else None
+                ),
+                "last_indexed_at": (
+                    resource.last_indexed_at.isoformat()
+                    if resource.last_indexed_at
+                    else None
+                ),
+            }
+        )
+
+    return {"resources": resources_list}
+
+
+@api_bp.get("/resources/<int:resource_id>/content")
+def get_resource_content(resource_id):
+    """Get the content of a specific resource."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    resource = Resource.query.filter(
+        Resource.id == resource_id,
+        Resource.is_active == True,
+        (Resource.user_id == user.id) | (Resource.user_id == 1),
+    ).first()
+
+    if not resource:
+        return {"error": "Resource not found"}, 404
+
+    try:
+        content = resource.get_content()
+        return {
+            "id": resource.id,
+            "filename": resource.filename,
+            "content": content,
+            "file_size": resource.file_size,
+        }
+    except Exception as e:
+        current_app.logger.error(f"Error reading resource content: {e}")
+        return {"error": "Failed to read resource content"}, 500
+
+
 @api_bp.get("/admin/audit")
 def admin_list_audit():
     user = _auth_user()
@@ -438,42 +575,55 @@ def admin_list_audit():
 
 # Persona Management Endpoints
 @api_bp.get("/personas")
-def list_personas():
-    """Get list of all available AI personas."""
+def get_personas():
+    """Get all active personas for the current user, including system defaults."""
     user = _auth_user()
     if not user:
-        return {"error": "Unauthorized"}, 401
+        return {"error": "Authentication required"}, 401
 
-    from .models.persona_models import Persona
+    # Get user-specific personas AND system default personas (user_id=1)
+    personas = Persona.query.filter(
+        Persona.is_active == True, (Persona.user_id == user.id) | (Persona.user_id == 1)
+    ).all()
 
-    # Get all active personas
-    personas = Persona.query.filter_by(is_active=True).all()
-
-    # Convert to dict format expected by frontend
-    personas_data = []
-    current_persona = None
-
+    personas_list = []
     for persona in personas:
-        persona_dict = {
-            "name": persona.name,
-            "display_name": persona.display_name,
-            "description": persona.description,
-            "expertise_areas": persona.expertise_areas or [],
-            "is_current": persona.is_default,
-            "is_active": persona.is_active,
-            "default_temperature": (
-                float(persona.default_temperature)
-                if persona.default_temperature
-                else 0.3
-            ),
-            "max_tokens": persona.max_tokens or 2048,
-        }
-        personas_data.append(persona_dict)
+        personas_list.append(
+            {
+                "id": persona.id,
+                "name": persona.name,
+                "display_name": persona.display_name,
+                "description": persona.description,
+                "expertise_areas": persona.expertise_areas or [],
+                "is_current": persona.is_default,
+                "is_active": persona.is_active,
+                "is_default": persona.is_default,
+                "user_id": persona.user_id,  # Add user_id to identify system vs user personas
+                "temperature": (
+                    float(persona.default_temperature)
+                    if persona.default_temperature
+                    else 0.3
+                ),
+                "default_temperature": (
+                    float(persona.default_temperature)
+                    if persona.default_temperature
+                    else 0.3
+                ),
+                "max_tokens": persona.max_tokens or 2048,
+                "created_at": (
+                    persona.created_at.isoformat() if persona.created_at else None
+                ),
+            }
+        )
 
+    # Set current persona if any persona is marked as default
+    current_persona = None
+    for persona in personas:
         if persona.is_default:
-            current_persona = persona_dict
+            current_persona = persona.name
+            break
 
-    return {"personas": personas_data, "current_persona": current_persona}
+    return {"personas": personas_list, "current": current_persona}
 
 
 @api_bp.get("/personas/current")
@@ -485,12 +635,16 @@ def get_current_persona():
 
     from .models.persona_models import Persona
 
-    # Get the default/current persona
-    current_persona = Persona.query.filter_by(is_default=True, is_active=True).first()
+    # Get the default/current persona for the user
+    current_persona = Persona.query.filter_by(
+        is_default=True, is_active=True, user_id=user.id
+    ).first()
 
     if not current_persona:
-        # If no default persona, get the first active one
-        current_persona = Persona.query.filter_by(is_active=True).first()
+        # If no default persona, get the first active one for the user
+        current_persona = Persona.query.filter_by(
+            is_active=True, user_id=user.id
+        ).first()
 
     if not current_persona:
         return {"error": "No active persona found"}, 404
@@ -528,13 +682,15 @@ def switch_persona():
 
     from .models.persona_models import Persona
 
-    # Find the requested persona
-    new_persona = Persona.query.filter_by(name=persona_name, is_active=True).first()
+    # Find the requested persona for the current user
+    new_persona = Persona.query.filter_by(
+        name=persona_name, is_active=True, user_id=user.id
+    ).first()
     if not new_persona:
         return {"error": f"Persona '{persona_name}' not found"}, 404
 
-    # Reset all personas to not default
-    Persona.query.update({Persona.is_default: False})
+    # Reset all personas to not default for current user only
+    Persona.query.filter_by(user_id=user.id).update({Persona.is_default: False})
 
     # Set the new persona as default
     new_persona.is_default = True
@@ -571,10 +727,12 @@ def get_persona_details(persona_name):
 
     from .models.persona_models import Persona
 
-    # Find the requested persona
-    persona = Persona.query.filter_by(name=persona_name, is_active=True).first()
+    # Find the requested persona for the current user
+    persona = Persona.query.filter_by(
+        name=persona_name, is_active=True, user_id=user.id
+    ).first()
     if not persona:
-        return {"error": f"Persona '{persona_name}' not found"}, 404
+        return {"error": f"Persona '{persona_name}' not found for current user"}, 404
 
     persona_dict = {
         "name": persona.name,
@@ -591,3 +749,569 @@ def get_persona_details(persona_name):
     }
 
     return {"persona": persona_dict, "prompt_content": persona.prompt_content}
+
+
+@api_bp.post("/personas")
+def create_persona():
+    """Create a new persona for the current user."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    data = request.get_json() or {}
+
+    # Validate required fields
+    name = (data.get("name") or "").strip()
+    display_name = (data.get("display_name") or "").strip()
+    description = (data.get("description") or "").strip()
+
+    if not name or not display_name or not description:
+        return {"error": "name, display_name, and description are required"}, 400
+
+    # Check if persona name already exists for this user
+    existing_persona = Persona.query.filter_by(name=name, user_id=user.id).first()
+    if existing_persona:
+        return {"error": f"Persona with name '{name}' already exists"}, 409
+
+    try:
+        # Create new persona
+        persona = Persona(
+            name=name,
+            display_name=display_name,
+            description=description,
+            expertise_areas=data.get("expertise_areas", []),
+            default_temperature=data.get("default_temperature", 0.3),
+            max_tokens=data.get("max_tokens", 2048),
+            prompt_content=data.get("prompt_content", ""),
+            is_active=data.get("is_active", True),
+            is_default=data.get("is_default", False),
+            user_id=user.id,
+        )
+
+        # If this is marked as default, unset other defaults for this user
+        if persona.is_default:
+            Persona.query.filter_by(user_id=user.id).update({Persona.is_default: False})
+
+        db.session.add(persona)
+        db.session.commit()
+
+        return {
+            "message": "Persona created successfully",
+            "persona": {
+                "id": persona.id,
+                "name": persona.name,
+                "display_name": persona.display_name,
+                "description": persona.description,
+                "expertise_areas": persona.expertise_areas or [],
+                "default_temperature": float(persona.default_temperature),
+                "max_tokens": persona.max_tokens,
+                "is_active": persona.is_active,
+                "is_default": persona.is_default,
+            },
+        }, 201
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creating persona: {e}")
+        return {"error": "Failed to create persona"}, 500
+
+
+@api_bp.put("/personas/<int:persona_id>")
+def update_persona(persona_id):
+    """Update an existing persona."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    persona = Persona.query.filter_by(id=persona_id, user_id=user.id).first()
+    if not persona:
+        return {"error": "Persona not found"}, 404
+
+    data = request.get_json() or {}
+
+    try:
+        # Update fields if provided
+        if "display_name" in data:
+            persona.display_name = data["display_name"].strip()
+        if "description" in data:
+            persona.description = data["description"].strip()
+        if "expertise_areas" in data:
+            persona.expertise_areas = data["expertise_areas"]
+        if "default_temperature" in data:
+            persona.default_temperature = data["default_temperature"]
+        if "max_tokens" in data:
+            persona.max_tokens = data["max_tokens"]
+        if "prompt_content" in data:
+            persona.prompt_content = data["prompt_content"]
+        if "is_active" in data:
+            persona.is_active = data["is_active"]
+        if "is_default" in data:
+            persona.is_default = data["is_default"]
+            # If setting as default, unset others
+            if persona.is_default:
+                Persona.query.filter_by(user_id=user.id).filter(
+                    Persona.id != persona_id
+                ).update({Persona.is_default: False})
+
+        db.session.commit()
+
+        return {
+            "message": "Persona updated successfully",
+            "persona": {
+                "id": persona.id,
+                "name": persona.name,
+                "display_name": persona.display_name,
+                "description": persona.description,
+                "expertise_areas": persona.expertise_areas or [],
+                "default_temperature": float(persona.default_temperature),
+                "max_tokens": persona.max_tokens,
+                "is_active": persona.is_active,
+                "is_default": persona.is_default,
+            },
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating persona: {e}")
+        return {"error": "Failed to update persona"}, 500
+
+
+@api_bp.delete("/personas/<int:persona_id>")
+def delete_persona(persona_id):
+    """Delete a persona."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    persona = Persona.query.filter_by(id=persona_id, user_id=user.id).first()
+    if not persona:
+        return {"error": "Persona not found"}, 404
+
+    try:
+        # Check if this is the default persona
+        if persona.is_default:
+            return {"error": "Cannot delete the default persona"}, 400
+
+        # Soft delete by setting is_active to False
+        persona.is_active = False
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Persona {persona.name} (ID: {persona.id}) soft deleted by user {user.id}"
+        )
+
+        return {"message": "Persona deleted successfully", "persona_id": persona_id}
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting persona: {e}")
+        return {"error": "Failed to delete persona"}, 500
+
+
+@api_bp.post("/upload")
+def upload_file():
+    """Upload a new document file."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    if "file" not in request.files:
+        return {"error": "No file provided"}, 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return {"error": "No file selected"}, 400
+
+    # Validate file type
+    allowed_extensions = {".txt", ".md", ".pdf", ".docx"}
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in allowed_extensions:
+        return {
+            "error": f"File type {file_ext} not allowed. Allowed types: {', '.join(allowed_extensions)}"
+        }, 400
+
+    try:
+        # Secure the filename
+        filename = secure_filename(file.filename)
+        if not filename:
+            return {"error": "Invalid filename"}, 400
+
+        # Create upload directory if it doesn't exist
+        upload_dir = Path(
+            current_app.config.get("UPLOAD_FOLDER", "backend/resources/user")
+        )
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename if file already exists
+        file_path = upload_dir / filename
+        counter = 1
+        original_stem = file_path.stem
+        while file_path.exists():
+            file_path = upload_dir / f"{original_stem}_{counter}{file_ext}"
+            counter += 1
+            filename = file_path.name
+
+        # Save the file
+        file.save(str(file_path))
+        file_size = file_path.stat().st_size
+
+        # Create database record
+        # Use relative path from the upload directory, not from cwd
+        relative_path = f"user/{filename}"
+
+        # Read content for preview
+        content_preview = ""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                content_preview = content[:500] + ("..." if len(content) > 500 else "")
+        except Exception:
+            content_preview = "Could not read file content"
+
+        resource = Resource(
+            filename=filename,
+            filepath=relative_path,
+            subdirectory="user",
+            file_size=file_size,
+            content_preview=content_preview,
+            is_active=True,
+            is_indexed=True,  # Mark as indexed immediately for simple search
+            user_id=user.id,
+        )
+
+        db.session.add(resource)
+        db.session.commit()
+
+        # Log the upload
+        audit_log = FileAuditLog(
+            user_id=user.id,
+            action="upload",
+            change_summary=f"Uploaded {filename}",
+            file_path=relative_path,
+        )
+        db.session.add(audit_log)
+        db.session.commit()
+
+        return {
+            "message": "File uploaded successfully",
+            "file": {
+                "id": resource.id,
+                "filename": filename,
+                "filepath": resource.filepath,
+                "file_size": file_size,
+                "is_active": True,
+                "is_indexed": False,
+            },
+        }, 201
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error uploading file: {e}")
+        return {"error": "Failed to upload file"}, 500
+
+
+@api_bp.get("/dashboard/user")
+def get_user_info():
+    """Get current user information and statistics."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    # Get user statistics (including system defaults)
+    total_documents = Resource.query.filter(
+        Resource.is_active == True,
+        (Resource.user_id == user.id) | (Resource.user_id == 1),
+    ).count()
+    total_personas = Persona.query.filter(
+        Persona.is_active == True,
+        (Persona.user_id == user.id) | (Persona.user_id == 1),
+    ).count()
+    total_chat_sessions = ChatHistory.query.filter_by(user_id=user.id).count()
+
+    # Calculate storage used (including system defaults)
+    total_storage = (
+        db.session.query(db.func.sum(Resource.file_size))
+        .filter(
+            Resource.is_active == True,
+            (Resource.user_id == user.id) | (Resource.user_id == 1),
+        )
+        .scalar()
+        or 0
+    )
+
+    return {
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "role": "User",  # Default role
+            "stats": {
+                "documents": total_documents,
+                "personas": total_personas,
+                "chat_sessions": total_chat_sessions,
+                "storage_used": _format_file_size(total_storage),
+            },
+        }
+    }
+
+
+# Dashboard API Endpoints
+@api_bp.get("/dashboard/documents")
+def get_user_documents():
+    """Get all documents for the current user."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    # Get both user documents and system default resources (user_id=1)
+    resources = Resource.query.filter(
+        Resource.is_active == True,
+        (Resource.user_id == user.id) | (Resource.user_id == 1),
+    ).all()
+
+    documents = []
+    for resource in resources:
+        documents.append(
+            {
+                "id": resource.id,
+                "filename": resource.filename,
+                "filepath": resource.filepath,
+                "subdirectory": resource.subdirectory,
+                "file_size": resource.file_size,
+                "size_display": resource.size_display,
+                "status_display": resource.status_display,
+                "is_active": resource.is_active,
+                "is_indexed": resource.is_indexed,
+                "user_id": resource.user_id,  # Add user_id to identify system vs user resources
+                "created_at": resource.created_at.isoformat(),
+                "updated_at": resource.updated_at.isoformat(),
+                "last_indexed_at": (
+                    resource.last_indexed_at.isoformat()
+                    if resource.last_indexed_at
+                    else None
+                ),
+            }
+        )
+
+    return {"documents": documents, "total": len(documents)}
+
+
+@api_bp.delete("/dashboard/documents/<int:document_id>")
+def delete_user_document(document_id):
+    """Delete a document for the current user."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    resource = Resource.query.filter_by(id=document_id, user_id=user.id).first()
+    if not resource:
+        return {"error": "Document not found"}, 404
+
+    # Delete the actual file if it exists
+    try:
+        file_path = resource.full_path
+        if file_path.exists():
+            file_path.unlink()
+    except Exception as e:
+        current_app.logger.warning(f"Could not delete file {resource.filepath}: {e}")
+
+    # Delete the database record
+    db.session.delete(resource)
+    db.session.commit()
+
+    return {"success": True, "message": "Document deleted successfully"}
+
+
+@api_bp.get("/dashboard/settings")
+def get_user_settings():
+    """Get user settings."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        # Create default settings
+        default_settings = {
+            "theme": "light",
+            "language": "en",
+            "notifications": True,
+            "auto_save": True,
+        }
+        settings = UserSettings(
+            user_id=user.id,
+            settings=default_settings,
+        )
+        db.session.add(settings)
+        db.session.commit()
+
+    return {
+        "settings": settings.settings
+        or {
+            "theme": "light",
+            "language": "en",
+            "notifications": True,
+            "auto_save": True,
+        }
+    }
+
+
+@api_bp.put("/dashboard/settings")
+def update_user_settings():
+    """Update user settings."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    data = request.get_json()
+    if not data:
+        return {"error": "No data provided"}, 400
+
+    settings = UserSettings.query.filter_by(user_id=user.id).first()
+    if not settings:
+        settings = UserSettings(user_id=user.id, settings={})
+        db.session.add(settings)
+
+    # Update settings - merge with existing settings
+    current_settings = settings.settings or {}
+    settings_data = data.get("settings", data)
+
+    # Update the settings JSON with new values
+    current_settings.update(settings_data)
+    settings.settings = current_settings
+    settings.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    return {"success": True, "message": "Settings updated successfully"}
+
+
+@api_bp.post("/dashboard/settings")
+def create_or_update_user_settings():
+    """Create or update user settings (same as PUT for frontend compatibility)."""
+    return update_user_settings()
+
+
+@api_bp.delete("/dashboard/user")
+def delete_user_account():
+    """Delete user account and all associated data (non-reversible)."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    data = request.get_json()
+    confirmation = data.get("confirmation") if data else ""
+
+    if confirmation != "DELETE MY ACCOUNT":
+        return {"error": "Please type 'DELETE MY ACCOUNT' to confirm"}, 400
+
+    try:
+        # Delete user's files first
+        resources = Resource.query.filter_by(user_id=user.id).all()
+        for resource in resources:
+            try:
+                file_path = resource.full_path
+                if file_path.exists():
+                    file_path.unlink()
+            except Exception as e:
+                current_app.logger.warning(
+                    f"Could not delete file {resource.filepath}: {e}"
+                )
+
+        # Delete all user data (foreign keys will cascade)
+        db.session.delete(user)
+        db.session.commit()
+
+        return {"success": True, "message": "Account deleted successfully"}
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting user account: {e}")
+        return {"error": "Failed to delete account"}, 500
+
+
+@api_bp.get("/dashboard/analytics")
+def get_user_analytics():
+    """Get analytics for the current user."""
+    user = _auth_user()
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    # Get chat statistics
+    total_chats = ChatHistory.query.filter_by(user_id=user.id).count()
+
+    # Get document statistics (including system defaults)
+    total_documents = Resource.query.filter(
+        Resource.is_active == True,
+        (Resource.user_id == user.id) | (Resource.user_id == 1),
+    ).count()
+    indexed_documents = Resource.query.filter(
+        Resource.is_active == True,
+        Resource.is_indexed == True,
+        (Resource.user_id == user.id) | (Resource.user_id == 1),
+    ).count()
+    active_documents = Resource.query.filter(
+        Resource.is_active == True,
+        (Resource.user_id == user.id) | (Resource.user_id == 1),
+    ).count()
+
+    # Get persona statistics (including system defaults)
+    total_personas = Persona.query.filter(
+        Persona.is_active == True,
+        (Persona.user_id == user.id) | (Persona.user_id == 1),
+    ).count()
+    active_personas = Persona.query.filter(
+        Persona.is_active == True,
+        (Persona.user_id == user.id) | (Persona.user_id == 1),
+    ).count()
+
+    # Calculate total storage used (including system defaults)
+    total_storage = (
+        db.session.query(db.func.sum(Resource.file_size))
+        .filter(
+            Resource.is_active == True,
+            (Resource.user_id == user.id) | (Resource.user_id == 1),
+        )
+        .scalar()
+        or 0
+    )
+
+    # Chat activity over last 7 days
+    from datetime import timedelta
+
+    week_ago = datetime.utcnow() - timedelta(days=7)
+    daily_chats = []
+    for i in range(7):
+        day_start = week_ago + timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        count = ChatHistory.query.filter(
+            ChatHistory.user_id == user.id,
+            ChatHistory.created_at >= day_start,
+            ChatHistory.created_at < day_end,
+        ).count()
+        daily_chats.append({"date": day_start.strftime("%Y-%m-%d"), "count": count})
+
+    return {
+        "analytics": {
+            "chats": {"total": total_chats, "daily_activity": daily_chats},
+            "documents": {
+                "total": total_documents,
+                "indexed": indexed_documents,
+                "active": active_documents,
+                "storage_bytes": total_storage,
+                "storage_display": _format_file_size(total_storage),
+            },
+            "personas": {"total": total_personas, "active": active_personas},
+        }
+    }
+
+
+def _format_file_size(size_bytes):
+    """Format file size in human readable format."""
+    if not size_bytes:
+        return "0 bytes"
+
+    for unit in ["bytes", "KB", "MB", "GB"]:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} TB"

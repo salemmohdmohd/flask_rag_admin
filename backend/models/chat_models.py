@@ -13,4 +13,13 @@ class ChatHistory(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     context = db.Column(db.JSON, nullable=True)
 
+    # Add constraints for data validation
+    __table_args__ = (
+        db.CheckConstraint("LENGTH(message) >= 1", name="check_message_not_empty"),
+        db.CheckConstraint(
+            "session_id IS NULL OR LENGTH(session_id) >= 1",
+            name="check_session_id_valid",
+        ),
+    )
+
     user = db.relationship("User", back_populates="chats")
