@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import axios from 'axios'
 import { useAuth } from '../contexts/AuthProvider'
 
-const useChat = (sessionId, sessions) => {
+const useChat = (sessionId, updateSession, currentSession) => {
   const [loading, setLoading] = useState(false)
   const { token } = useAuth()
 
@@ -24,49 +24,43 @@ const useChat = (sessionId, sessions) => {
         session_id: sessionId
       }
 
-      const response = await axios.post(
-        '/chat/message',
-        payload,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+      const response = await axios.post('/chat/message', payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      )
+      })
 
-      const { response: aiResponse, source_file, token_usage, follow_up_suggestions, persona } = response.data
+      const {
+        response: aiResponse,
+        source_file,
+        token_usage,
+        follow_up_suggestions,
+        persona
+      } = response.data
 
-      // Update the session with the new messages
-      const session = sessions.find(s => s.id === sessionId)
-      if (session) {
-        const userMessage = {
-          type: 'user',
-          content: message,
-          timestamp: new Date().toLocaleString()
-        }
-
-        const assistantMessage = {
-          type: 'assistant',
-          content: aiResponse,
-          timestamp: new Date().toLocaleString(),
-          source_file,
-          token_usage,
-          follow_up_suggestions: follow_up_suggestions || [],
-          persona: persona || null
-        }
-
-        session.messages.push(userMessage, assistantMessage)
-        session.updatedAt = new Date().toISOString()
-
-        // Save to localStorage
-        const sessionsData = JSON.parse(localStorage.getItem('chatSessions') || '[]')
-        const sessionIndex = sessionsData.findIndex(s => s.id === sessionId)
-        if (sessionIndex !== -1) {
-          sessionsData[sessionIndex] = session
-          localStorage.setItem('chatSessions', JSON.stringify(sessionsData))
-        }
+      // Create new messages
+      const userMessage = {
+        type: 'user',
+        content: message,
+        timestamp: new Date().toLocaleString()
       }
+
+      const assistantMessage = {
+        type: 'assistant',
+        content: aiResponse,
+        timestamp: new Date().toLocaleString(),
+        source_file,
+        token_usage,
+        follow_up_suggestions: follow_up_suggestions || [],
+        persona: persona || null
+      }
+
+      // Update session with new messages
+      const currentMessages = currentSession?.messages || []
+      updateSession(sessionId, {
+        messages: [...currentMessages, userMessage, assistantMessage]
+      })
 
       return { success: true, response: aiResponse }
     } catch (error) {

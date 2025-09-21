@@ -86,6 +86,41 @@ const PersonaSelector = ({ onPersonaChange, className = '' }) => {
     );
   }
 
+  // For navbar version, return compact dropdown
+  if (className.includes('navbar')) {
+    return (
+      <div className={`d-flex align-items-center ${className}`}>
+        <span className="text-white me-2 d-none d-lg-inline small">
+          <i className="fas fa-robot me-1"></i>AI:
+        </span>
+        <select
+          value={currentPersona?.name || ''}
+          onChange={(e) => switchPersona(e.target.value)}
+          disabled={switching}
+          className="form-select form-select-sm border-0 bg-light text-dark"
+          style={{
+            fontSize: '0.85rem',
+            minWidth: '120px',
+            maxWidth: '160px'
+          }}
+          title={currentPersona ? `${currentPersona.display_name} - ${currentPersona.description}` : 'Select AI Persona'}
+        >
+          {personas.map(persona => (
+            <option key={persona.name} value={persona.name}>
+              {persona.display_name}
+            </option>
+          ))}
+        </select>
+        {switching && (
+          <div className="spinner-border spinner-border-sm text-light ms-2" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Original card version for other contexts
   return (
     <div className={`card bg-light mb-2 ${className}`}>
       <div className="card-body py-2">

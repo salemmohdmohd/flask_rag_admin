@@ -42,13 +42,11 @@ const useChatSessions = () => {
       updatedAt: new Date().toISOString()
     }
 
-    const updatedSessions = [newSession, ...sessions]
-    setSessions(updatedSessions)
+    setSessions([newSession, ...sessions])
     setCurrentSession(newSession)
   }
 
   const switchToSession = (session) => {
-    // Find the session in the current sessions array to ensure we have the latest data
     const latestSession = sessions.find(s => s.id === session.id) || session
     setCurrentSession(latestSession)
   }
@@ -57,13 +55,8 @@ const useChatSessions = () => {
     const updatedSessions = sessions.filter(s => s.id !== sessionId)
     setSessions(updatedSessions)
 
-    if (currentSession && currentSession.id === sessionId) {
-      // If we're deleting the current session, switch to the first available session
-      if (updatedSessions.length > 0) {
-        setCurrentSession(updatedSessions[0])
-      } else {
-        setCurrentSession(null)
-      }
+    if (currentSession?.id === sessionId) {
+      setCurrentSession(updatedSessions.length > 0 ? updatedSessions[0] : null)
     }
   }
 
@@ -76,7 +69,7 @@ const useChatSessions = () => {
       )
 
       // Update current session if it's the one being updated
-      if (currentSession && currentSession.id === sessionId) {
+      if (currentSession?.id === sessionId) {
         const updatedSession = updated.find(s => s.id === sessionId)
         setCurrentSession(updatedSession)
       }
@@ -85,20 +78,9 @@ const useChatSessions = () => {
     })
   }
 
-  // Group sessions by date for better organization
-  const groupedSessions = sessions.reduce((groups, session) => {
-    const date = new Date(session.createdAt).toDateString()
-    if (!groups[date]) {
-      groups[date] = []
-    }
-    groups[date].push(session)
-    return groups
-  }, {})
-
   return {
     sessions,
     currentSession,
-    groupedSessions,
     createNewSession,
     switchToSession,
     deleteSession,
