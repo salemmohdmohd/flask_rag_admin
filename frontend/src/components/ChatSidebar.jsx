@@ -120,36 +120,36 @@ function ChatSidebar({
 									currentSession?.id === session.id ? 'active' : ''
 								}`}
 								onClick={() => onSwitchSession(session)}
-								style={{ cursor: 'pointer' }}
+								style={{ cursor: 'pointer', minHeight: '80px' }}
 							>
-								<div className="d-flex justify-content-between align-items-start">
-									<div className="flex-grow-1 me-2">
+								<div className="d-flex align-items-start" style={{ gap: '8px' }}>
+									<div className="flex-grow-1" style={{ minWidth: 0 }}>
 										<div className="fw-semibold text-truncate mb-1">
 											{session.name}
 										</div>
-										<div className={`d-flex justify-content-between small ${
+										<div className={`d-flex justify-content-between small mb-1 ${
 											currentSession?.id === session.id ? 'text-white-50' : 'text-muted'
 										}`}>
-											<span>
+											<span className="text-truncate" style={{ maxWidth: '60%' }}>
 												<i className="fas fa-comment me-1"></i>
 												{session.messages.length} messages
 											</span>
-											<span>{formatDate(session.createdAt)}</span>
+											<span className="text-nowrap">{formatDate(session.createdAt)}</span>
 										</div>
 
 										{/* Message Preview */}
 										{session.messages && session.messages.length > 0 && (
-											<div className={`mt-2 small text-truncate ${
+											<div className={`small text-truncate ${
 												currentSession?.id === session.id ? 'text-white-50' : 'text-muted'
-											}`}>
+											}`} style={{ maxWidth: '100%' }}>
 												<i className="fas fa-quote-left me-1"></i>
-												{session.messages[session.messages.length - 1].content.substring(0, 60)}
-												{session.messages[session.messages.length - 1].content.length > 60 && '...'}
+												{session.messages[session.messages.length - 1].content.substring(0, 50)}
+												{session.messages[session.messages.length - 1].content.length > 50 && '...'}
 											</div>
 										)}
 									</div>
 
-									<div className="flex-shrink-0">
+									<div className="flex-shrink-0 align-self-start">
 										<button
 											className={`btn btn-sm ${
 												currentSession?.id === session.id
@@ -163,6 +163,7 @@ function ChatSidebar({
 												}
 											}}
 											title="Delete session"
+											style={{ minWidth: '32px' }}
 										>
 											<i className="fas fa-trash"></i>
 										</button>
