@@ -1,6 +1,14 @@
 
 # flask_rag_admin
 
+<img width="1279" height="589" alt="Screenshot 2025-09-21 at 12 42 19 AM" src="https://github.com/user-attachments/assets/9dfc1bf3-624b-44ae-b771-276e893a9f14" />
+
+<img width="1274" height="592" alt="Screenshot 2025-09-21 at 1 00 28 AM" src="https://github.com/user-attachments/assets/b42dfa28-5a71-49b9-bd23-8340e7c6d082" />
+
+<img width="904" height="309" alt="Screenshot 2025-09-21 at 1 07 28 AM" src="https://github.com/user-attachments/assets/8f9db943-8914-49c5-bf52-78b52a55e09b" />
+
+<img width="841" height="545" alt="Screenshot 2025-09-21 at 1 08 45 AM" src="https://github.com/user-attachments/assets/26e8439b-13f7-4f1f-98bc-4e4675ac1e2f" />
+
 ## RAG-Powered Chat App with Admin Panel
 
 ### Project Description
