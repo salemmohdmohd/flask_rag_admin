@@ -1,26 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-
-// Mock hooks and components for demonstration
-const useAuth = () => ({ user: { id: 1, name: 'User' } });
-const useKnowledgeBase = () => ({
-  documents: [],
-  allDocuments: [
-    { id: 1, filename: 'document1.pdf', content: 'Sample content 1', source: 'server' },
-    { id: 2, filename: 'document2.docx', content: 'Sample content 2', source: 'client' }
-  ],
-  searchKnowledgeBase: (query) => Promise.resolve([])
-});
-const useSemanticSearch = () => ({
-  isInitialized: false,
-  isGeneratingEmbeddings: false,
-  embeddingProgress: null,
-  cacheStats: { documentsWithEmbeddings: 0, totalDocuments: 2, totalEmbeddingChunks: 0, cacheSize: '0KB' },
-  error: null,
-  initializeService: (apiKey) => Promise.resolve(),
-  generateEmbeddings: (docs) => Promise.resolve(),
-  semanticSearch: (query, limit, docIds) => Promise.resolve([]),
-  clearCache: () => {}
-});
+import { useAuth } from '../contexts/AuthContext';
+import { useKnowledgeBase } from '../hooks/useKnowledgeBase';
 
 const ChatSidebar = ({ sessions, currentSession, onCreateNewSession, onSwitchSession, onDeleteSession, isMobile }) => (
   <div className="bg-light h-100 p-3 border-end">
@@ -61,17 +41,7 @@ const ChatSidebar = ({ sessions, currentSession, onCreateNewSession, onSwitchSes
 const ChatWithClientDocuments = () => {
   const { user } = useAuth();
   const { documents, allDocuments, searchKnowledgeBase } = useKnowledgeBase();
-  const {
-    isInitialized,
-    isGeneratingEmbeddings,
-    embeddingProgress,
-    cacheStats,
-    error: embeddingError,
-    initializeService,
-    generateEmbeddings,
-    semanticSearch,
-    clearCache
-  } = useSemanticSearch();
+  // Remove semantic search hook and related state
 
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -86,9 +56,7 @@ const ChatWithClientDocuments = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDocumentSelector, setShowDocumentSelector] = useState(false);
   const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [apiKeyFailed, setApiKeyFailed] = useState(false);
-  const [useSemanticSearchMode, setUseSemanticSearchMode] = useState(true);
+  // Remove API key modal and semantic search mode
 
   // Session management state
   const [sessions, setSessions] = useState([]);
@@ -101,16 +69,7 @@ const ChatWithClientDocuments = () => {
     // Load sessions first
     loadSessions();
 
-    // Check for saved API key - using React state instead of localStorage
-    const savedApiKey = apiKey || '';
-    if (savedApiKey && !apiKeyFailed) {
-      initializeService(savedApiKey).catch(() => {
-        setApiKeyFailed(true);
-        if (!showApiKeyInput) setShowApiKeyInput(true);
-      });
-    } else if (!apiKeyFailed && !savedApiKey) {
-      setShowApiKeyInput(true);
-    }
+    // No API key or semantic search initialization needed
   }, []);
 
   useEffect(() => {
@@ -140,33 +99,11 @@ const ChatWithClientDocuments = () => {
   };
 
   const handleApiKeySubmit = async () => {
-    if (!apiKey.trim() || apiKeyFailed) return;
-
-    try {
-      await initializeService(apiKey);
-      // Store in component state instead of localStorage
-      setShowApiKeyInput(false);
-      setApiKeyFailed(false);
-    } catch (error) {
-      console.error('Failed to initialize embedding service:', error);
-      alert('Failed to initialize with the provided API key. Please check your key and try again.');
-      setApiKeyFailed(true);
-    }
+    // Remove API key submit logic
   };
 
   const handleGenerateEmbeddings = async () => {
-    if (selectedDocuments.length === 0) {
-      alert('Please select documents first');
-      return;
-    }
-
-    try {
-      await generateEmbeddings(selectedDocuments);
-      alert('Embeddings generated successfully!');
-    } catch (error) {
-      console.error('Failed to generate embeddings:', error);
-      alert('Failed to generate embeddings: ' + error.message);
-    }
+    // Remove embedding generation logic
   };
 
   // Session management functions
@@ -253,36 +190,12 @@ const ChatWithClientDocuments = () => {
     setMessages(prev => [...prev, newUserMessage]);
 
     try {
-      let documentsToSend = [];
-      let searchMethod = 'full_documents';
-
-      if (useSemanticSearchMode && isInitialized && selectedDocuments.length > 0) {
-        console.log('🔍 Using client-side semantic search');
-
-        const selectedDocIds = selectedDocuments.map(doc => doc.id);
-        const relevantChunks = await semanticSearch(userMessage, 5, selectedDocIds);
-
-        if (relevantChunks.length > 0) {
-          documentsToSend = relevantChunks.map(chunk => ({
-            filename: chunk.documentFilename || 'unknown',
-            content: chunk.text
-          }));
-          searchMethod = 'semantic_search';
-          console.log(`✅ Found ${relevantChunks.length} relevant chunks using semantic search`);
-        } else {
-          console.log('⚠️ No relevant chunks found, falling back to full documents');
-          documentsToSend = selectedDocuments.map(doc => ({
-            filename: doc.filename || doc.name,
-            content: doc.content
-          }));
-        }
-      } else {
-        console.log('📄 Using full document mode');
-        documentsToSend = selectedDocuments.map(doc => ({
-          filename: doc.filename || doc.name,
-          content: doc.content
-        }));
-      }
+      // Always use full document mode, send selected documents to backend
+      const documentsToSend = selectedDocuments.map(doc => ({
+        filename: doc.filename || doc.name,
+        content: doc.content
+      }));
+      const searchMethod = 'full_documents';
 
       // Simulate API response for demo purposes
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -372,45 +285,7 @@ const ChatWithClientDocuments = () => {
       {/* Main Chat Area */}
       <div className="flex-grow-1 d-flex flex-column h-100">
         {/* API Key Input Modal */}
-        {showApiKeyInput && (
-          <div className="modal fade show d-block" style={{backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1050}}>
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">🔑 Google AI Studio API Key Required</h5>
-                </div>
-                <div className="modal-body text-center">
-                  <p>To use client-side semantic search, please enter your Google AI Studio API key:</p>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your Google AI Studio API key"
-                    className="form-control"
-                  />
-                  <small className="form-text text-muted mt-2">
-                    Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>
-                  </small>
-                </div>
-                <div className="modal-footer justify-content-center">
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleApiKeySubmit}
-                    disabled={!apiKey.trim()}
-                  >
-                    Initialize
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => setShowApiKeyInput(false)}
-                  >
-                    Skip (use basic mode)
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* API Key modal removed */}
 
         <div className="bg-primary text-white p-4">
           <div className="d-flex align-items-center justify-content-between mb-3">
@@ -443,83 +318,13 @@ const ChatWithClientDocuments = () => {
           </div>
 
           {/* Embedding Status */}
-          {isInitialized && (
-            <div className="bg-light bg-opacity-25 rounded p-3 mb-3">
-              <div className="d-flex align-items-center justify-content-between mb-2">
-                <div className="d-flex align-items-center gap-2">
-                  <span className="fw-bold">
-                    🧠 Semantic Search: {isInitialized ? '✅ Ready' : '❌ Not Ready'}
-                  </span>
-                  {cacheStats && (
-                    <small className="text-white-75">
-                      | 📊 {cacheStats.documentsWithEmbeddings}/{cacheStats.totalDocuments} docs cached
-                      | {cacheStats.totalEmbeddingChunks} chunks
-                      | {cacheStats.cacheSize}
-                    </small>
-                  )}
-                </div>
-              </div>
-              <div className="d-flex align-items-center gap-3 flex-wrap">
-                <div className="form-check form-switch">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    checked={useSemanticSearchMode}
-                    onChange={(e) => setUseSemanticSearchMode(e.target.checked)}
-                    id="semanticSearchToggle"
-                  />
-                  <label className="form-check-label text-white" htmlFor="semanticSearchToggle">
-                    Use Semantic Search
-                  </label>
-                </div>
-                <button
-                  onClick={handleGenerateEmbeddings}
-                  disabled={isGeneratingEmbeddings || selectedDocuments.length === 0}
-                  className="btn btn-outline-light btn-sm"
-                >
-                  {isGeneratingEmbeddings ? '⏳ Generating...' : '🧠 Generate Embeddings'}
-                </button>
-                <button
-                  onClick={() => setShowApiKeyInput(true)}
-                  className="btn btn-outline-light btn-sm"
-                >
-                  ⚙️
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Embedding status and semantic search UI removed */}
 
           {/* Embedding Progress */}
-          {isGeneratingEmbeddings && embeddingProgress && (
-            <div className="bg-light bg-opacity-25 rounded p-3 mb-3">
-              <div className="mb-2">
-                <small>
-                  Processing: {embeddingProgress.currentDocument}
-                  ({embeddingProgress.documentIndex}/{embeddingProgress.totalDocuments})
-                </small>
-              </div>
-              <div className="progress mb-2" style={{height: '6px'}}>
-                <div
-                  className="progress-bar bg-success"
-                  style={{
-                    width: `${(embeddingProgress.chunkProgress / embeddingProgress.totalChunks) * 100}%`
-                  }}
-                />
-              </div>
-              <div className="text-center">
-                <small className="text-white-75">
-                  Chunk {embeddingProgress.chunkProgress}/{embeddingProgress.totalChunks}
-                </small>
-              </div>
-            </div>
-          )}
+          {/* Embedding progress UI removed */}
 
           {/* Error Display */}
-          {embeddingError && (
-            <div className="alert alert-danger alert-dismissible mb-3">
-              ❌ {embeddingError}
-            </div>
-          )}
+          {/* Embedding error UI removed */}
 
           {/* Document Selection Panel */}
           <div className="mb-3">

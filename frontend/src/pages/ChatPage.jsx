@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthProvider';
 import { useKnowledgeBase } from '../hooks/useKnowledgeBase';
-import { useSemanticSearch } from '../hooks/useSemanticSearch';
 import ChatSidebar from '../components/ChatSidebar';
-import ApiKeyModal from '../components/ApiKeyModal';
 import ChatHeader from '../components/ChatHeader';
 import DocumentSelector from '../components/DocumentSelector';
 import ChatMessages from '../components/ChatMessages';
@@ -12,17 +10,6 @@ import ChatInput from '../components/ChatInput';
 const ChatPage = () => {
   const { user } = useAuth();
   const { documents, allDocuments, searchKnowledgeBase } = useKnowledgeBase();
-  const {
-    isInitialized,
-    isGeneratingEmbeddings,
-    embeddingProgress,
-    cacheStats,
-    error: embeddingError,
-    initializeService,
-    generateEmbeddings,
-    semanticSearch,
-    clearCache
-  } = useSemanticSearch();
 
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -35,8 +22,7 @@ const ChatPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDocumentSelector, setShowDocumentSelector] = useState(false);
   const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [useSemanticSearchMode, setUseSemanticSearchMode] = useState(true);
+  // Remove API key modal and semantic search mode
 
   // Session management state
   const [sessions, setSessions] = useState([]);
@@ -52,14 +38,7 @@ const ChatPage = () => {
     // Load personas
     loadPersonas();
 
-    // Check for saved API key
-    const savedApiKey = localStorage.getItem('gemini_api_key');
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-      initializeService(savedApiKey);
-    } else {
-      setShowApiKeyInput(true);
-    }
+    // No API key or semantic search initialization needed
   }, []);
 
   useEffect(() => {
@@ -84,58 +63,19 @@ const ChatPage = () => {
 
   // Auto-generate embeddings when documents are selected
   useEffect(() => {
-    const autoGenerateEmbeddings = async () => {
-      // Only generate if we have documents, service is initialized, and not already generating
-      if (selectedDocuments.length > 0 && isInitialized && !isGeneratingEmbeddings) {
-        try {
-          console.log(`🔄 Auto-generating embeddings for ${selectedDocuments.length} documents...`);
-          await generateEmbeddings(selectedDocuments);
-          console.log(`✅ Embeddings generated successfully for ${selectedDocuments.length} documents`);
-        } catch (error) {
-          console.error('Failed to auto-generate embeddings:', error);
-          // Only show alert for actual errors, not for user-initiated cancellations
-          if (!error.message.includes('cancelled') && !error.message.includes('aborted')) {
-            alert('Failed to generate embeddings: ' + error.message);
-          }
-        }
-      }
-    };
-
-    // Debounce the embedding generation to avoid rapid re-generation
-    const timeoutId = setTimeout(autoGenerateEmbeddings, 500);
-    return () => clearTimeout(timeoutId);
-  }, [selectedDocuments, isInitialized, isGeneratingEmbeddings]);
+    // No auto-generation of embeddings needed
+  }, [selectedDocuments]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleApiKeySubmit = async () => {
-    if (!apiKey.trim()) return;
-
-    try {
-      await initializeService(apiKey);
-      localStorage.setItem('gemini_api_key', apiKey);
-      setShowApiKeyInput(false);
-    } catch (error) {
-      console.error('Failed to initialize embedding service:', error);
-      alert('Failed to initialize with the provided API key. Please check your key and try again.');
-    }
+    // Remove API key submit logic
   };
 
   const handleGenerateEmbeddings = async () => {
-    if (selectedDocuments.length === 0) {
-      alert('Please select documents first');
-      return;
-    }
-
-    try {
-      await generateEmbeddings(selectedDocuments);
-      console.log('✅ Manual embedding generation completed successfully');
-    } catch (error) {
-      console.error('Failed to generate embeddings:', error);
-      alert('Failed to generate embeddings: ' + error.message);
-    }
+    // Remove embedding generation logic
   };
 
   const loadPersonas = async () => {
@@ -310,44 +250,12 @@ const ChatPage = () => {
 
     try {
       const token = localStorage.getItem('token');
-
-      let documentsToSend = [];
-      let searchMethod = 'full_documents';
-
-      if (useSemanticSearchMode && isInitialized && selectedDocuments.length > 0) {
-        // Use client-side semantic search to find relevant chunks
-        console.log('🔍 Using client-side semantic search');
-
-        // Get document IDs of selected documents
-        const selectedDocIds = selectedDocuments.map(doc => doc.id);
-
-        // Perform semantic search
-        const relevantChunks = await semanticSearch(userMessage, 5, selectedDocIds);
-
-        if (relevantChunks.length > 0) {
-          // Convert chunks back to document format for API
-          documentsToSend = relevantChunks.map(chunk => ({
-            filename: chunk.documentFilename || 'unknown',
-            content: chunk.text
-          }));
-          searchMethod = 'semantic_search';
-
-          console.log(`✅ Found ${relevantChunks.length} relevant chunks using semantic search`);
-        } else {
-          console.log('⚠️ No relevant chunks found, falling back to full documents');
-          documentsToSend = selectedDocuments.map(doc => ({
-            filename: doc.filename || doc.name,
-            content: doc.content
-          }));
-        }
-      } else {
-        // Fallback to sending full documents
-        console.log('📄 Using full document mode');
-        documentsToSend = selectedDocuments.map(doc => ({
-          filename: doc.filename || doc.name,
-          content: doc.content
-        }));
-      }
+      // Always use full document mode, send selected documents to backend
+      const documentsToSend = selectedDocuments.map(doc => ({
+        filename: doc.filename || doc.name,
+        content: doc.content
+      }));
+      const searchMethod = 'full_documents';
 
       const response = await fetch('/api/chat/message/client-documents', {
         method: 'POST',
@@ -434,30 +342,13 @@ const ChatPage = () => {
 
       {/* Main Chat Area */}
       <div className="flex-grow-1 d-flex flex-column h-100">
-        {/* API Key Input Modal */}
-        <ApiKeyModal
-          show={showApiKeyInput}
-          apiKey={apiKey}
-          setApiKey={setApiKey}
-          onSubmit={handleApiKeySubmit}
-          onCancel={() => setShowApiKeyInput(false)}
-        />
+        {/* API Key modal removed */}
 
         {/* Chat Header */}
         <ChatHeader
           currentSession={currentSession}
           showSidebar={showSidebar}
           setShowSidebar={setShowSidebar}
-          isInitialized={isInitialized}
-          isGeneratingEmbeddings={isGeneratingEmbeddings}
-          embeddingProgress={embeddingProgress}
-          embeddingError={embeddingError}
-          cacheStats={cacheStats}
-          useSemanticSearchMode={useSemanticSearchMode}
-          setUseSemanticSearchMode={setUseSemanticSearchMode}
-          selectedDocuments={selectedDocuments}
-          handleGenerateEmbeddings={handleGenerateEmbeddings}
-          setShowApiKeyInput={setShowApiKeyInput}
           showDocumentSelector={showDocumentSelector}
           setShowDocumentSelector={setShowDocumentSelector}
           selectedPersona={selectedPersona}
@@ -496,6 +387,5 @@ const ChatPage = () => {
       </div>
     </div>
   );
-};
-
+}
 export default ChatPage;

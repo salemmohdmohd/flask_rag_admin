@@ -4,21 +4,12 @@ const ChatHeader = ({
   currentSession,
   showSidebar,
   setShowSidebar,
-  isInitialized,
-  isGeneratingEmbeddings,
-  embeddingProgress,
-  embeddingError,
-  cacheStats,
-  useSemanticSearchMode,
-  setUseSemanticSearchMode,
-  selectedDocuments,
-  handleGenerateEmbeddings,
-  setShowApiKeyInput,
   showDocumentSelector,
   setShowDocumentSelector,
   selectedPersona,
   setSelectedPersona,
-  personas
+  personas,
+  selectedDocuments
 }) => {
   return (
     <div className="bg-primary text-white p-2">
@@ -48,33 +39,11 @@ const ChatHeader = ({
             className="btn btn-outline-light btn-sm"
             onClick={() => setShowDocumentSelector(!showDocumentSelector)}
           >
-            📄 {selectedDocuments.length}
+            📄 {(selectedDocuments ? selectedDocuments.length : 0)}
           </button>
 
           {/* Semantic search status */}
-          {isInitialized && (
-            <div className="d-flex align-items-center gap-2">
-              <small className="text-white-75" title={useSemanticSearchMode ? 'AI Semantic Search - finds content by meaning' : 'Basic Search - uses full documents'}>
-                🔍 {useSemanticSearchMode ? 'AI Search' : 'Basic'}
-              </small>
-              {isGeneratingEmbeddings && !(embeddingError && embeddingError.toLowerCase().includes('api key not valid')) && (
-                <small className="text-warning">
-                  ⚡ Auto-generating...
-                </small>
-              )}
-              <div className="form-check form-switch mb-0">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  checked={useSemanticSearchMode}
-                  onChange={(e) => setUseSemanticSearchMode(e.target.checked)}
-                  id="semanticToggle"
-                  style={{transform: 'scale(0.8)'}}
-                  title="Toggle between AI semantic search and basic document search"
-                />
-              </div>
-            </div>
-          )}
+          {/* Semantic search status removed */}
         </div>
 
         {/* Right side - Persona and controls */}
@@ -94,63 +63,15 @@ const ChatHeader = ({
           </select>
 
           {/* Control buttons */}
-          {isInitialized && selectedDocuments.length > 0 && (
-            <button
-              onClick={handleGenerateEmbeddings}
-              disabled={isGeneratingEmbeddings || (embeddingError && embeddingError.toLowerCase().includes('api key not valid'))}
-              className="btn btn-outline-light btn-sm"
-              title={embeddingError && embeddingError.toLowerCase().includes('api key not valid') ? 'Invalid API key. Please update your key.' : 'Regenerate embeddings for selected documents'}
-            >
-              {isGeneratingEmbeddings ? '⏳' : '🔄'}
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowApiKeyInput(true)}
-            className="btn btn-outline-light btn-sm"
-            title="Settings"
-          >
-            ⚙️
-          </button>
+          {/* Embedding and API key controls removed */}
         </div>
       </div>
 
       {/* Progress bar - only show when generating embeddings */}
-      {isGeneratingEmbeddings && embeddingProgress && (
-        <div className="mt-2">
-          <div className="progress" style={{height: '3px'}}>
-            <div
-              className="progress-bar bg-warning"
-              style={{
-                width: `${(embeddingProgress.chunkProgress / embeddingProgress.totalChunks) * 100}%`
-              }}
-            />
-          </div>
-          <small className="text-white-75">
-            Processing: {embeddingProgress.currentDocument} ({embeddingProgress.chunkProgress}/{embeddingProgress.totalChunks})
-          </small>
-        </div>
-      )}
+      {/* Embedding progress bar removed */}
 
       {/* Error message - only show when there's an error */}
-      {embeddingError && (
-        <div className="mt-2">
-          <small className="text-warning">
-            ⚠️ {embeddingError}
-          </small>
-          {embeddingError.toLowerCase().includes('api key not valid') && (
-            <div className="mt-2">
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => setShowApiKeyInput(true)}
-              >
-                Update API Key
-              </button>
-              <span className="ms-2 text-danger">Embedding is disabled until a valid API key is provided.</span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Embedding error message and API key update removed */}
     </div>
   );
 };
