@@ -975,12 +975,28 @@ def upload_file():
             file_size=file_size,
             content_preview=content_preview,
             is_active=True,
-            is_indexed=True,  # Mark as indexed immediately for simple search
             user_id=user.id,
         )
 
         db.session.add(resource)
         db.session.commit()
+
+        # --- Actual Indexing Step ---
+        try:
+            from .rag_pipeline_llm_driven import index_resource_document
+
+            # Call your embedding/indexing function (must be implemented)
+            indexing_result = index_resource_document(resource)
+            if indexing_result is True:
+                resource.mark_indexed()  # Only mark as indexed if successful
+            else:
+                current_app.logger.warning(
+                    f"Indexing failed for resource {resource.id}: {indexing_result}"
+                )
+        except Exception as e:
+            current_app.logger.error(
+                f"Indexing error for resource {resource.id}: {str(e)}"
+            )
 
         # Log the upload
         audit_log = FileAuditLog(
@@ -1000,7 +1016,7 @@ def upload_file():
                 "filepath": resource.filepath,
                 "file_size": file_size,
                 "is_active": True,
-                "is_indexed": False,
+                "is_indexed": resource.is_indexed,
             },
         }, 201
 

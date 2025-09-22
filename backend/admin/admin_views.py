@@ -125,25 +125,14 @@ class CustomPersonaModelView(ModelView):
     can_delete = True
 
     def get_query(self):
-        """Filter to show only current user's personas."""
-        from flask import session, g
-
-        user_id = getattr(g, "current_user_id", None) or session.get("admin_user_id")
-        if user_id:
-            return self.session.query(self.model).filter(self.model.user_id == user_id)
-        return self.session.query(self.model).filter(False)  # Show nothing if no user
+        """Show all persona records, no user isolation."""
+        return self.session.query(self.model)
 
     def get_count_query(self):
-        """Count only current user's personas."""
-        from flask import session, g
+        """Count all persona records, no user isolation."""
         from sqlalchemy import func
 
-        user_id = getattr(g, "current_user_id", None) or session.get("admin_user_id")
-        if user_id:
-            return self.session.query(func.count(self.model.id)).filter(
-                self.model.user_id == user_id
-            )
-        return self.session.query(func.count(self.model.id)).filter(False)
+        return self.session.query(func.count(self.model.id))
 
     def on_model_change(self, form, model, is_created):
         """Set user_id when creating new personas."""

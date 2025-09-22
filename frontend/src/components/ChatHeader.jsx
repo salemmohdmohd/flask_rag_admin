@@ -17,6 +17,10 @@ const ChatHeader = ({
       <div className="d-flex align-items-center justify-content-between">
         {/* Left side - Title and controls */}
         <div className="d-flex align-items-center gap-3">
+          {/* Back to Dashboard button */}
+          <a href="/dashboard" className="btn btn-outline-light btn-sm" title="Back to Dashboard">
+            <i className="fas fa-arrow-left me-1"></i> Dashboard
+          </a>
           {/* Mobile sidebar toggle */}
           <button
             className="btn btn-outline-light btn-sm d-lg-none"

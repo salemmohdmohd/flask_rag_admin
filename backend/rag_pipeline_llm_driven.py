@@ -891,3 +891,49 @@ def answer_query(
             "persona": current_persona_data,
         },
     )
+
+
+def index_resource_document(resource):
+    """
+    Index a resource document (embedding, vector DB, etc.).
+    Replace this placeholder with your actual indexing logic.
+    Return True if indexing succeeds, False or error string if not.
+    """
+    """
+    Index the resource by generating an embedding and saving it to disk or DB.
+    Returns True if successful, error string if not.
+    """
+    try:
+        # Get API key from environment
+        api_key = os.getenv("GOOGLE_GEMINI_API_KEY", "").strip()
+        if not api_key or api_key.startswith("AIzaSy-PLACEHOLDER"):
+            return "GOOGLE_GEMINI_API_KEY not set"
+
+        # Read file content
+        file_path = resource.full_path
+        if not file_path.exists():
+            return f"File not found: {file_path}"
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+
+        # Generate embedding
+        embedding = generate_text_embedding(content, api_key)
+        if not embedding:
+            return "Embedding generation failed"
+
+        # Save embedding to resource (if you have a column) or to disk
+        # Example: Save to a .embedding file next to the resource
+        try:
+            emb_path = file_path.with_suffix(file_path.suffix + ".embedding")
+            with open(emb_path, "wb") as emb_file:
+                pickle.dump(embedding, emb_file)
+        except Exception as e:
+            return f"Error saving embedding: {str(e)}"
+
+        print(f"✅ Indexed resource {resource.id}: {resource.filename}")
+        return True
+    except Exception as e:
+        return str(e)

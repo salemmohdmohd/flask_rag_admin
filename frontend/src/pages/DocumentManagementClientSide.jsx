@@ -262,71 +262,71 @@ function DocumentManagementClientSide({ onLogout }) {
 		)
 	}
 
-	return (
-		<div className="min-vh-100 bg-light">
-			{/* Header */}
-			<div className="bg-white border-bottom shadow-sm">
-				<div className="container-fluid px-4 py-3">
-					<div className="d-flex justify-content-between align-items-center">
-						<div>
-							<h1 className="h2 fw-bold text-dark mb-1">Document Management</h1>
-							<p className="text-muted mb-0">Manage your knowledge base documents and AI personas.</p>
-						</div>
-						<div className="d-flex gap-3">
-							<Link to="/settings" className="text-muted text-decoration-none">
-								<i className="fas fa-cog me-2"></i>Settings
-							</Link>
-							<button
-								onClick={onLogout}
-								className="btn btn-link text-danger text-decoration-none p-0"
-							>
-								<i className="fas fa-sign-out-alt me-2"></i>Logout
-							</button>
-						</div>
-					</div>
-				</div>
-			</div>
+	 return (
+		 <div className="min-vh-100 bg-theme-bg">
+			 {/* Header */}
+			 <div className="bg-theme-header border-bottom shadow-sm">
+				 <div className="container-fluid px-4 py-3">
+					 <div className="d-flex justify-content-between align-items-center">
+						 <div>
+							 <h1 className="h2 fw-bold text-theme-primary mb-1">Document Management</h1>
+							 <p className="text-theme-muted mb-0">Manage your knowledge base documents and AI personas.</p>
+						 </div>
+						 <div className="d-flex gap-3 align-items-center">
+							 <Link to="/dashboard" className="btn btn-outline-primary">
+								 <i className="fas fa-arrow-left me-2"></i>Back to Dashboard
+							 </Link>
 
-			<div className="container-fluid px-4 py-3">
-				{/* Storage Stats */}
-				{storageStats && (
-					<div className="card mb-4">
-						<div className="card-body">
-							<div className="d-flex justify-content-between align-items-center">
+							 <button
+								 onClick={onLogout}
+								 className="btn btn-outline-danger"
+							 >
+								 <i className="fas fa-sign-out-alt me-2"></i>Logout
+							 </button>
+						 </div>
+					 </div>
+				 </div>
+			 </div>
 
-								<div className="d-flex gap-4 small">
-									<div className="text-center">
-										<div className="h4 fw-bold text-primary mb-0">{storageStats.totalDocuments}</div>
-										<div className="text-muted">Documents</div>
-									</div>
-									<div className="text-center">
-										<div className="h4 fw-bold text-success mb-0">{storageStats.totalSizeFormatted}</div>
-										<div className="text-muted">Total Size</div>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
-				)}
+	     <div className="container-fluid px-4 py-3">
+	       {/* Storage Stats */}
+	       {storageStats && (
+	         <div className="card mb-4 border-theme-primary">
+	           <div className="card-body">
+	             <div className="d-flex justify-content-between align-items-center">
+	               <div className="d-flex gap-4 small">
+	                 <div className="text-center">
+	                   <div className="h4 fw-bold text-theme-primary mb-0">{storageStats.totalDocuments}</div>
+	                   <div className="text-theme-muted">Documents</div>
+	                 </div>
+	                 <div className="text-center">
+	                   <div className="h4 fw-bold text-theme-success mb-0">{storageStats.totalSizeFormatted}</div>
+	                   <div className="text-theme-muted">Total Size</div>
+	                 </div>
+	               </div>
+	             </div>
+	           </div>
+	         </div>
+	       )}
 
-				{/* Error Display */}
-				{documentsError && (
-					<div className="alert alert-danger d-flex align-items-center mb-4" role="alert">
-						<div className="d-flex align-items-start">
-							<i className="fas fa-exclamation-triangle text-danger me-3 mt-1"></i>
-							<div>
-								<h3 className="small fw-medium text-danger mb-1">Error</h3>
-								<p className="small text-danger mb-2">{documentsError}</p>
-								<button
-									onClick={() => setDocumentsError(null)}
-									className="btn btn-link btn-sm text-danger text-decoration-none p-0"
-								>
-									Dismiss
-								</button>
-							</div>
-						</div>
-					</div>
-				)}
+	       {/* Error Display */}
+	       {documentsError && (
+	         <div className="alert alert-danger d-flex align-items-center mb-4" role="alert">
+	           <div className="d-flex align-items-start">
+	             <i className="fas fa-exclamation-triangle text-theme-danger me-3 mt-1"></i>
+	             <div>
+	               <h3 className="small fw-medium text-theme-danger mb-1">Error</h3>
+	               <p className="small text-theme-danger mb-2">{documentsError}</p>
+	               <button
+	                 onClick={() => setDocumentsError(null)}
+	                 className="btn btn-link btn-sm text-theme-danger text-decoration-none p-0"
+	               >
+	                 Dismiss
+	               </button>
+	             </div>
+	           </div>
+	         </div>
+	       )}
 
 				{/* Tabs */}
 				<div className="card mb-4">
