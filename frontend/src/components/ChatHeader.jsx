@@ -57,7 +57,7 @@ const ChatHeader = ({
               <small className="text-white-75" title={useSemanticSearchMode ? 'AI Semantic Search - finds content by meaning' : 'Basic Search - uses full documents'}>
                 🔍 {useSemanticSearchMode ? 'AI Search' : 'Basic'}
               </small>
-              {isGeneratingEmbeddings && (
+              {isGeneratingEmbeddings && !(embeddingError && embeddingError.toLowerCase().includes('api key not valid')) && (
                 <small className="text-warning">
                   ⚡ Auto-generating...
                 </small>
@@ -86,8 +86,7 @@ const ChatHeader = ({
             className="form-select form-select-sm"
             style={{minWidth: '150px', maxWidth: '200px'}}
           >
-            <option value="">Default</option>
-            {personas.map(persona => (
+            {personas.map((persona, idx) => (
               <option key={persona.name} value={persona.name}>
                 {persona.display_name}
               </option>
@@ -98,9 +97,9 @@ const ChatHeader = ({
           {isInitialized && selectedDocuments.length > 0 && (
             <button
               onClick={handleGenerateEmbeddings}
-              disabled={isGeneratingEmbeddings}
+              disabled={isGeneratingEmbeddings || (embeddingError && embeddingError.toLowerCase().includes('api key not valid'))}
               className="btn btn-outline-light btn-sm"
-              title="Regenerate embeddings for selected documents"
+              title={embeddingError && embeddingError.toLowerCase().includes('api key not valid') ? 'Invalid API key. Please update your key.' : 'Regenerate embeddings for selected documents'}
             >
               {isGeneratingEmbeddings ? '⏳' : '🔄'}
             </button>
@@ -139,6 +138,17 @@ const ChatHeader = ({
           <small className="text-warning">
             ⚠️ {embeddingError}
           </small>
+          {embeddingError.toLowerCase().includes('api key not valid') && (
+            <div className="mt-2">
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={() => setShowApiKeyInput(true)}
+              >
+                Update API Key
+              </button>
+              <span className="ms-2 text-danger">Embedding is disabled until a valid API key is provided.</span>
+            </div>
+          )}
         </div>
       )}
     </div>

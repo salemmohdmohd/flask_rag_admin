@@ -67,7 +67,7 @@ export const useDocuments = () => {
       setError('Failed to upload document: ' + err.message)
       throw err
     }
-  }, [loadDocuments])
+  }, [])
 
   const deleteDocument = useCallback(async (documentId) => {
     try {
