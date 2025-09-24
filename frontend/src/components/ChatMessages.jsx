@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 const ChatMessages = ({ messages, isLoading, messagesEndRef, setInputMessage }) => {
   const formatTimestamp = (timestamp) => {
@@ -9,14 +9,21 @@ const ChatMessages = ({ messages, isLoading, messagesEndRef, setInputMessage }) 
   };
 
   return (
-    <div className="flex-grow-1 overflow-auto p-3 bg-light">
+    <div className="messages-container flex-grow-1 overflow-auto p-3 bg-light">
       {messages.map(message => (
         <div
           key={message.id}
-          className={`mb-3 ${message.type === 'user' ? 'ms-auto' : ''}`}
-          style={{maxWidth: '80%'}}
+          className={`mb-3 ${message.type === 'user' ? 'ms-auto' : ''} w-100`}
+          style={{maxWidth: '600px'}}
+          aria-label={
+            message.type === 'user'
+              ? 'Your message'
+              : message.type === 'ai'
+              ? 'AI Assistant message'
+              : 'Error message'
+          }
         >
-          <div className={`card ${
+          <div className={`card card-elevated ${
             message.type === 'user'
               ? 'bg-primary text-white'
               : message.type === 'error'
@@ -36,7 +43,7 @@ const ChatMessages = ({ messages, isLoading, messagesEndRef, setInputMessage }) 
             </div>
 
             <div className="card-body py-2">
-              <div style={{whiteSpace: 'pre-wrap', wordWrap: 'break-word'}}>
+              <div className="text-balance">
                 {message.content}
               </div>
 
@@ -61,7 +68,8 @@ const ChatMessages = ({ messages, isLoading, messagesEndRef, setInputMessage }) 
                       <button
                         key={index}
                         onClick={() => setInputMessage(suggestion)}
-                        className="btn btn-outline-info btn-sm text-start"
+                        className="btn theme-btn btn-outline-info btn-sm text-start"
+                        aria-label={`Ask: ${suggestion}`}
                       >
                         {suggestion}
                       </button>
@@ -83,8 +91,8 @@ const ChatMessages = ({ messages, isLoading, messagesEndRef, setInputMessage }) 
       ))}
 
       {isLoading && (
-        <div className="mb-3">
-          <div className="card bg-white">
+        <div className="mb-3 w-100" style={{maxWidth: '600px'}}>
+          <div className="card card-elevated bg-white" aria-label="AI Assistant is thinking">
             <div className="card-header py-2 border-0 bg-transparent">
               <small className="fw-bold">🤖 AI Assistant</small>
             </div>

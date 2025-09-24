@@ -13,10 +13,13 @@ function LoginForm({ onLogin, loginError, isLoading }) {
 	}
 
 	return (
-		<div className="card shadow-lg border-0 mx-auto" style={{ maxWidth: '400px' }}>
+		<div className="card shadow-lg border-0 mx-auto theme-login-card" style={{ maxWidth: 400 }}>
 			<div className="card-body p-4 p-md-5">
 				<div className="text-center mb-4">
-					<div className="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style={{ width: '60px', height: '60px' }}>
+					<div
+						className="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3 theme-login-avatar"
+						style={{ width: 60, height: 60 }}
+					>
 						<i className="fas fa-user-shield fa-2x text-primary"></i>
 					</div>
 					<h2 className="card-title h4 mb-2">Welcome Back</h2>
@@ -42,12 +45,11 @@ function LoginForm({ onLogin, loginError, isLoading }) {
 							type="text"
 							value={form.username}
 							onChange={onChange}
-							className="form-control form-control-lg"
+							className="form-control form-control-lg theme-input"
 							placeholder="Enter your username"
 							disabled={isLoading}
 							required
 							autoComplete="username"
-							style={{ paddingLeft: '1rem', fontSize: '1rem' }}
 						/>
 					</div>
 
@@ -62,21 +64,19 @@ function LoginForm({ onLogin, loginError, isLoading }) {
 							type="password"
 							value={form.password}
 							onChange={onChange}
-							className="form-control form-control-lg"
+							className="form-control form-control-lg theme-input"
 							placeholder="Enter your password"
 							disabled={isLoading}
 							required
 							autoComplete="current-password"
-							style={{ paddingLeft: '1rem', fontSize: '1rem' }}
 						/>
 					</div>
 
 					<div className="d-grid">
 						<button
-							className="btn btn-primary btn-lg py-3"
+							className="btn btn-primary btn-lg py-3 theme-btn"
 							type="submit"
 							disabled={isLoading || !form.username.trim() || !form.password}
-							style={{ fontSize: '1.1rem' }}
 						>
 							{isLoading ? (
 								<>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 
 function ChatSidebar({
 	sessions,
@@ -53,45 +53,49 @@ function ChatSidebar({
 						<i className={`fas fa-history me-2 ${isMobile ? 'text-white' : ''}`}></i>
 						Chat Sessions
 					</h6>
-					<button
-						className={`btn btn-sm ${isMobile ? 'btn-light' : 'btn-outline-primary'}`}
-						onClick={() => setShowNewSessionInput(true)}
-						disabled={showNewSessionInput}
-						title="New Chat Session"
-					>
-						<i className="fas fa-plus"></i>
-					</button>
+								<button
+									className={`btn theme-btn btn-sm ${isMobile ? 'btn-light' : 'btn-outline-primary'}`}
+									onClick={() => setShowNewSessionInput(true)}
+									disabled={showNewSessionInput}
+									title="New Chat Session"
+									aria-label="Create new chat session"
+								>
+									<i className="fas fa-plus"></i>
+								</button>
 				</div>
 
 				{/* New Session Input */}
 				{showNewSessionInput && (
 					<div className="mb-0">
 						<div className="input-group input-group-sm">
-							<input
-								type="text"
-								className="form-control"
-								placeholder="Session name..."
-								value={newSessionName}
-								onChange={(e) => setNewSessionName(e.target.value)}
-								onKeyPress={handleKeyPress}
-								autoFocus
-							/>
-							<button
-								className="btn btn-success"
-								onClick={handleCreateSession}
-								disabled={!newSessionName.trim()}
-							>
-								<i className="fas fa-check"></i>
-							</button>
-							<button
-								className="btn btn-outline-secondary"
-								onClick={() => {
-									setShowNewSessionInput(false)
-									setNewSessionName('')
-								}}
-							>
-								<i className="fas fa-times"></i>
-							</button>
+											<input
+												type="text"
+												className="form-control theme-input"
+												placeholder="Session name..."
+												value={newSessionName}
+												onChange={(e) => setNewSessionName(e.target.value)}
+												onKeyPress={handleKeyPress}
+												autoFocus
+												aria-label="New session name"
+											/>
+											<button
+												className="btn theme-btn btn-success"
+												onClick={handleCreateSession}
+												disabled={!newSessionName.trim()}
+												aria-label="Confirm new session"
+											>
+												<i className="fas fa-check"></i>
+											</button>
+											<button
+												className="btn theme-btn btn-outline-secondary"
+												onClick={() => {
+													setShowNewSessionInput(false)
+													setNewSessionName('')
+												}}
+												aria-label="Cancel new session"
+											>
+												<i className="fas fa-times"></i>
+											</button>
 						</div>
 					</div>
 				)}
@@ -103,25 +107,25 @@ function ChatSidebar({
 					<div className="text-center p-4">
 						<i className="fas fa-comment-alt text-muted mb-3" style={{ fontSize: '2rem' }}></i>
 						<div className="text-muted mb-3">No sessions yet</div>
-						<button
-							className="btn btn-outline-primary"
-							onClick={() => setShowNewSessionInput(true)}
-						>
-							<i className="fas fa-plus me-2"></i>
-							Create your first session
-						</button>
+									<button
+										className="btn theme-btn btn-outline-primary"
+										onClick={() => setShowNewSessionInput(true)}
+										aria-label="Create your first session"
+									>
+										<i className="fas fa-plus me-2"></i>
+										Create your first session
+									</button>
 					</div>
 				) : (
 					<div className="list-group list-group-flush">
 						{sessions.map(session => (
-							<div
-								key={session.id}
-								className={`list-group-item list-group-item-action border-0 ${
-									currentSession?.id === session.id ? 'active' : ''
-								}`}
-								onClick={() => onSwitchSession(session)}
-								style={{ cursor: 'pointer', minHeight: '80px' }}
-							>
+											<div
+												key={session.id}
+												className={`list-group-item list-group-item-action border-0 ${currentSession?.id === session.id ? 'active' : ''}`}
+												onClick={() => onSwitchSession(session)}
+												style={{ cursor: 'pointer', minHeight: '80px' }}
+												aria-label={`Switch to session ${session.name}`}
+											>
 								<div className="d-flex align-items-start" style={{ gap: '8px' }}>
 									<div className="flex-grow-1" style={{ minWidth: 0 }}>
 										<div className="fw-semibold text-truncate mb-1">
@@ -150,23 +154,20 @@ function ChatSidebar({
 									</div>
 
 									<div className="flex-shrink-0 align-self-start">
-										<button
-											className={`btn btn-sm ${
-												currentSession?.id === session.id
-													? 'btn-outline-light'
-													: 'btn-outline-danger'
-											}`}
-											onClick={(e) => {
-												e.stopPropagation()
-												if (window.confirm(`Delete "${session.name}"?`)) {
-													onDeleteSession(session.id)
-												}
-											}}
-											title="Delete session"
-											style={{ minWidth: '32px' }}
-										>
-											<i className="fas fa-trash"></i>
-										</button>
+															<button
+																className={`btn theme-btn btn-sm ${currentSession?.id === session.id ? 'btn-outline-light' : 'btn-outline-danger'}`}
+																onClick={(e) => {
+																	e.stopPropagation()
+																	if (window.confirm(`Delete "${session.name}"?`)) {
+																		onDeleteSession(session.id)
+																	}
+																}}
+																title="Delete session"
+																style={{ minWidth: '32px' }}
+																aria-label={`Delete session ${session.name}`}
+															>
+																<i className="fas fa-trash"></i>
+															</button>
 									</div>
 								</div>
 							</div>

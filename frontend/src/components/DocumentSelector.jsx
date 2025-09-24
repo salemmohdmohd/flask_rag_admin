@@ -11,7 +11,7 @@ const DocumentSelector = ({
   if (!show) return null;
 
   return (
-    <div className="mb-3">
+    <div className="mb-3 theme-doc-selector">
       <div className="mt-3 bg-white rounded p-3 text-dark">
         <div className="mb-3">
           <input
@@ -19,11 +19,11 @@ const DocumentSelector = ({
             placeholder="Search documents..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="form-control"
+            className="form-control theme-doc-input"
           />
         </div>
 
-        <div className="border rounded" style={{maxHeight: '200px', overflowY: 'auto'}}>
+        <div className="border rounded theme-doc-list">
           {allDocuments
             .filter(doc =>
               !searchQuery ||
@@ -33,13 +33,15 @@ const DocumentSelector = ({
             .map(doc => (
               <div
                 key={doc.id}
-                className={`p-3 border-bottom ${
+                className={`p-3 border-bottom theme-doc-item ${
                   selectedDocuments.some(d => d.id === doc.id)
                     ? 'bg-primary bg-opacity-10 border-start border-primary border-3'
                     : 'bg-white'
                 }`}
                 onClick={() => toggleDocumentSelection(doc)}
-                style={{cursor: 'pointer'}}
+                tabIndex={0}
+                role="button"
+                aria-pressed={selectedDocuments.some(d => d.id === doc.id)}
                 onMouseEnter={(e) => {
                   if (!selectedDocuments.some(d => d.id === doc.id)) {
                     e.target.classList.add('bg-light');

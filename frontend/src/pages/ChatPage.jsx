@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import AppHeader from '../components/AppHeader';
+import ChatInput from '../components/ChatInput';
+import ChatMessages from '../components/ChatMessages';
+import ChatSidebar from '../components/ChatSidebar';
+import ChatTopMenu from '../components/ChatTopMenu';
+import DocumentSelector from '../components/DocumentSelector';
 import { useAuth } from '../contexts/AuthProvider';
 import { useKnowledgeBase } from '../hooks/useKnowledgeBase';
-import ChatSidebar from '../components/ChatSidebar';
-import ChatHeader from '../components/ChatHeader';
-import DocumentSelector from '../components/DocumentSelector';
-import ChatMessages from '../components/ChatMessages';
-import ChatInput from '../components/ChatInput';
 
 const ChatPage = () => {
   const { user } = useAuth();
@@ -318,9 +319,9 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="d-flex h-100 position-relative">
+    <div className="dashboard d-flex h-100 position-relative bg-body">
       {/* Sidebar */}
-      <div className={`position-relative ${showSidebar ? 'd-block' : 'd-none d-lg-block'}`} style={{width: '320px'}}>
+      <div className={`position-relative ${showSidebar ? 'd-block' : 'd-none d-lg-block'} card card-elevated bg-light`} style={{width: '320px', minHeight: '100vh'}}>
         <ChatSidebar
           sessions={sessions}
           currentSession={currentSession}
@@ -342,48 +343,51 @@ const ChatPage = () => {
 
       {/* Main Chat Area */}
       <div className="flex-grow-1 d-flex flex-column h-100">
-        {/* API Key modal removed */}
 
-        {/* Chat Header */}
-        <ChatHeader
-          currentSession={currentSession}
-          showSidebar={showSidebar}
-          setShowSidebar={setShowSidebar}
-          showDocumentSelector={showDocumentSelector}
-          setShowDocumentSelector={setShowDocumentSelector}
+        {/* Unified App Header */}
+        <AppHeader title="AI Chat" subtitle="Converse with your RAG system and documents" showBack={true} backTo="/dashboard" />
+        <ChatTopMenu
+          personas={personas}
           selectedPersona={selectedPersona}
           setSelectedPersona={setSelectedPersona}
-          personas={personas}
+          selectedDocuments={selectedDocuments}
+          setShowDocumentSelector={setShowDocumentSelector}
         />
 
         {/* Document Selection Panel */}
-        <DocumentSelector
-          show={showDocumentSelector}
-          allDocuments={allDocuments}
-          selectedDocuments={selectedDocuments}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          toggleDocumentSelection={toggleDocumentSelection}
-        />
+        <div className="theme-doc-selector">
+          <DocumentSelector
+            show={showDocumentSelector}
+            allDocuments={allDocuments}
+            selectedDocuments={selectedDocuments}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            toggleDocumentSelection={toggleDocumentSelection}
+          />
+        </div>
 
         {/* Chat Messages */}
-        <ChatMessages
-          messages={messages}
-          isLoading={isLoading}
-          messagesEndRef={messagesEndRef}
-          setInputMessage={setInputMessage}
-        />
+        <div className="flex-grow-1 px-3 py-2 messages-container">
+          <ChatMessages
+            messages={messages}
+            isLoading={isLoading}
+            messagesEndRef={messagesEndRef}
+            setInputMessage={setInputMessage}
+          />
+        </div>
 
         {/* Chat Input */}
-        <ChatInput
-          inputMessage={inputMessage}
-          setInputMessage={setInputMessage}
-          selectedDocuments={selectedDocuments}
-          isLoading={isLoading}
-          sendMessage={sendMessage}
-          handleKeyPress={handleKeyPress}
-          currentSession={currentSession}
-        />
+        <div className="chat-input-container card-flat p-3">
+          <ChatInput
+            inputMessage={inputMessage}
+            setInputMessage={setInputMessage}
+            selectedDocuments={selectedDocuments}
+            isLoading={isLoading}
+            sendMessage={sendMessage}
+            handleKeyPress={handleKeyPress}
+            currentSession={currentSession}
+          />
+        </div>
       </div>
     </div>
   );
